@@ -10,7 +10,6 @@ import {
   Search,
   Download,
   Filter,
-  RefreshCw,
   TrendingUp,
   Smartphone,
   Building2,
@@ -20,12 +19,11 @@ import {
 import { PaymentMethod, PaymentStatus, Order } from '../../types';
 
 export const AdminPaymentManager: React.FC = () => {
-  const { orders, verifyChapaPayment, recordCashPaymentReceived, updateOrderStatus } = useApp();
+  const { orders, recordCashPaymentReceived } = useApp();
 
   const [selectedMethod, setSelectedMethod] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [verifyingMap, setVerifyingMap] = useState<Record<string, boolean>>({});
 
   // Financial Metrics
   const metrics = useMemo(() => {
@@ -75,15 +73,6 @@ export const AdminPaymentManager: React.FC = () => {
       return true;
     });
   }, [orders, selectedMethod, selectedStatus, searchQuery]);
-
-  const handleVerify = async (orderId: string) => {
-    setVerifyingMap((prev) => ({ ...prev, [orderId]: true }));
-    try {
-      await verifyChapaPayment(orderId);
-    } finally {
-      setVerifyingMap((prev) => ({ ...prev, [orderId]: false }));
-    }
-  };
 
   const exportCSV = () => {
     const headers = ['Order Number', 'Date', 'Customer', 'Phone', 'Payment Method', 'Payment Status', 'Amount ETB', 'Tx Reference'];
@@ -268,10 +257,9 @@ export const AdminPaymentManager: React.FC = () => {
                 </tr>
               ) : (
                 filteredOrders.map((order) => {
-                  const isOnline = order.paymentMethod === 'telebirr' || order.paymentMethod === 'cbe_birr';
-                  const isCash = order.paymentMethod === 'cod' || order.paymentMethod === 'cop';
+                  const isOnline = order.paymentMethod === 'chapa' || order.paymentMethod === 'telebirr' || order.paymentMethod === 'cbe_birr';
+                  const isCash = order.paymentMethod === 'cash' || order.paymentMethod === 'cod' || order.paymentMethod === 'cop';
                   const isPaid = order.paymentStatus === 'paid';
-                  const isVerifying = verifyingMap[order.id];
 
                   return (
                     <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
@@ -367,15 +355,11 @@ export const AdminPaymentManager: React.FC = () => {
                         {!isPaid ? (
                           <div className="flex items-center justify-end gap-1.5">
                             {isOnline && (
-                              <button
-                                onClick={() => handleVerify(order.id)}
-                                disabled={isVerifying}
-                                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 transition-colors shadow-xs"
-                                title="Query Chapa API for status"
-                              >
-                                <RefreshCw className={`w-3 h-3 ${isVerifying ? 'animate-spin' : ''}`} />
-                                <span>Verify Chapa</span>
-                              </button>
+                              <span className="text-[11px] text-slate-500 font-medium">
+                                {order.orderStatus === 'pending'
+                                  ? 'Confirm order first'
+                                  : 'Awaiting customer payment'}
+                              </span>
                             )}
 
                             {isCash && (

@@ -19,12 +19,11 @@ import {
   CreditCard,
   DollarSign,
   AlertCircle,
-  RefreshCw,
   ExternalLink,
 } from 'lucide-react';
 import { ALMADINA_SHOP_LOCATION } from '../../data/mockData';
 import { OrderItem } from '../../types';
-import { resolveOrderItems } from '../../utils/orderUtils';
+import { resolveOrderItems, isOrderConfirmedForPayment } from '../../utils/orderUtils';
 
 const GOOGLE_MAPS_EMBED_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -51,26 +50,18 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     currentUser,
     userRole,
     returnReports,
-    verifyChapaPayment,
-    setPendingChapaOrder,
-    setViewTab,
+    startChapaCheckout,
   } = useApp();
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [verifyingOrderMap, setVerifyingOrderMap] = useState<Record<string, boolean>>({});
+  const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
 
-  const handleReVerifyOrder = async (order: Order) => {
-    setVerifyingOrderMap((prev) => ({ ...prev, [order.id]: true }));
+  const handleOpenGatewayForOrder = async (order: Order) => {
+    setPayingOrderId(order.id);
     try {
-      await verifyChapaPayment(order.id);
+      await startChapaCheckout(order.id);
     } finally {
-      setVerifyingOrderMap((prev) => ({ ...prev, [order.id]: false }));
+      setPayingOrderId(null);
     }
-  };
-
-  const handleOpenGatewayForOrder = (order: Order) => {
-    setPendingChapaOrder(order);
-    onClose();
-    setViewTab('chapa_gateway_sim');
   };
 
   // Retrieve placed order IDs stored in session/localStorage
@@ -139,7 +130,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
       case 'unpaid':
         return { label: 'Unpaid (Cash on Fulfillment)', style: 'bg-slate-100 text-slate-800 border-slate-300' };
       case 'payment_pending':
-        return { label: 'Chapa Payment Pending', style: 'bg-amber-100 text-amber-900 border-amber-300' };
+        return { label: 'Waiting for payment', style: 'bg-amber-100 text-amber-900 border-amber-300' };
       case 'paid':
         return { label: 'PAID', style: 'bg-emerald-800 text-emerald-100 border-emerald-700 font-bold' };
       case 'failed':
@@ -515,31 +506,28 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                           {/* Online Payment Unpaid/Pending/Failed Actions */}
                           {(order.paymentMethod === 'chapa' || order.paymentMethod === 'telebirr' || order.paymentMethod === 'cbe_birr') && order.paymentStatus !== 'paid' && (
                             <div className="pt-2 flex flex-col gap-2">
-                              {order.paymentStatus === 'failed' && (
-                                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl flex items-center gap-2 text-[11px] font-medium animate-pulse">
+                              {order.paymentStatus === 'failed' && isOrderConfirmedForPayment(order) && (
+                                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl flex items-center gap-2 text-[11px] font-medium">
                                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                                  <span>Payment was unsuccessful. You can try paying again to confirm your order.</span>
+                                  <span>Payment was unsuccessful. You can try paying again.</span>
                                 </div>
                               )}
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleReVerifyOrder(order)}
-                                  disabled={verifyingOrderMap[order.id]}
-                                  className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
-                                >
-                                  <RefreshCw className={`w-3.5 h-3.5 ${verifyingOrderMap[order.id] ? 'animate-spin' : ''}`} />
-                                  <span>Verify Status</span>
-                                </button>
+                              {!isOrderConfirmedForPayment(order) && order.orderStatus !== 'cancelled' ? (
+                                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl flex items-center gap-2 text-[11px] font-medium">
+                                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                                  <span>Waiting for the shop to confirm this order. You can pay with Chapa after confirmation.</span>
+                                </div>
+                              ) : isOrderConfirmedForPayment(order) ? (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenGatewayForOrder(order)}
-                                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors shadow-xs"
+                                  disabled={payingOrderId === order.id}
+                                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors shadow-xs disabled:opacity-60"
                                 >
                                   <CreditCard className="w-3.5 h-3.5" />
-                                  <span>Pay Now (Chapa)</span>
+                                  <span>{payingOrderId === order.id ? 'Opening Chapa...' : 'Pay Now (Chapa)'}</span>
                                 </button>
-                              </div>
+                              ) : null}
                             </div>
                           )}
 

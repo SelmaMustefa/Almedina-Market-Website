@@ -52,21 +52,10 @@ function calculateDistanceKm(lat1: number, lon1: number, lat2: number = SHOP_LOC
   return Math.round(R * c * 10) / 10;
 }
 
-const DEFAULT_CHAPA_SECRET = '';
-
-function getChapaBaseUrl(): string {
-  const base = (process.env.CHAPA_BASE_URL || 'https://api.chapa.co').replace(/\/+$/, '');
-  return base.endsWith('/v1') ? base : `${base}/v1`;
-}
-
-function getChapaSecret(): string {
-  return (process.env.CHAPA_SECRET_KEY || process.env.CHAPA_API_KEY || DEFAULT_CHAPA_SECRET).trim();
-}
-
 /**
  * Authoritative Server-Side Order Creation
  * Validates product prices against catalog/database, calculates subtotal, delivery fee,
- * grand total, enforces Chapa/Cash payment methods, and initiates Chapa session if needed.
+ * grand total, enforces Chapa/Cash payment methods. Chapa checkout starts after admin confirmation.
  */
 export async function createOrder(req: AuthenticatedRequest, res: Response) {
   try {
@@ -202,63 +191,9 @@ export async function createOrder(req: AuthenticatedRequest, res: Response) {
     let chapaCheckoutUrl: string | null = null;
     let paymentStatus = normalizedMethod === 'chapa' ? 'payment_pending' : 'pending_cash';
 
-    // 7. If payment method is Chapa, initialize transaction with server-calculated amount
+    // 7. Chapa: store a tx_ref now. Checkout is created only after admin confirms the order.
     if (normalizedMethod === 'chapa') {
       chapaTxRef = `ALM-TX-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const secretKey = getChapaSecret();
-
-      let validEmail = (customerEmail || '').trim();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!validEmail || !emailRegex.test(validEmail)) {
-        validEmail = 'customer@almadinamarket.com';
-      }
-
-      const host = req.get('host') || 'localhost:3000';
-      const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-      const origin = `${protocol}://${host}`;
-
-      const chapaPayload = {
-        amount: String(serverTotal), // Server-authoritative total in ETB!
-        currency: 'ETB',
-        email: validEmail,
-        first_name: customerName.split(' ')[0] || 'Customer',
-        last_name: customerName.split(' ').slice(1).join(' ') || 'Almedina',
-        phone_number: customerPhone.trim(),
-        tx_ref: chapaTxRef,
-        callback_url: `${origin}/api/chapa/webhook`,
-        return_url: `${origin}/?chapa_verify=1&tx_ref=${chapaTxRef}`,
-        customization: {
-          title: 'Almedina Market',
-          description: `Order ${orderNumber}`,
-        },
-      };
-
-      console.log(`[OrderController] Initializing Chapa payment for order ${orderNumber}, amount: ${serverTotal} ETB, tx_ref: ${chapaTxRef}`);
-
-      try {
-        const apiUrl = getChapaBaseUrl();
-        const chapaRes = await fetch(`${apiUrl}/transaction/initialize`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${secretKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(chapaPayload),
-        });
-
-        const chapaData = (await chapaRes.json()) as any;
-        if (chapaRes.ok && chapaData.status === 'success' && chapaData.data?.checkout_url) {
-          chapaCheckoutUrl = chapaData.data.checkout_url;
-          console.log(`[OrderController] Chapa checkout URL acquired: ${chapaCheckoutUrl}`);
-        } else {
-          console.error('[OrderController] Chapa initialize error:', chapaData);
-          // Fallback if network or test credentials reject
-          chapaCheckoutUrl = `${origin}/?chapa_sim=1&tx_ref=${chapaTxRef}&amount=${serverTotal}`;
-        }
-      } catch (chapaErr: any) {
-        console.warn('[OrderController] Chapa call exception, using simulated fallback:', chapaErr.message);
-        chapaCheckoutUrl = `${origin}/?chapa_sim=1&tx_ref=${chapaTxRef}&amount=${serverTotal}`;
-      }
     }
 
     // 8. Construct authoritative order payload
@@ -366,7 +301,7 @@ export async function createOrder(req: AuthenticatedRequest, res: Response) {
     return res.status(201).json({
       success: true,
       message: normalizedMethod === 'chapa'
-        ? 'Order placed. Redirecting to Chapa payment portal.'
+        ? 'Order placed. Payment opens after the shop confirms the order.'
         : 'Cash order placed. Payment will be collected in cash upon delivery/pickup.',
       order: fullOrderResponse,
       checkoutUrl: chapaCheckoutUrl,

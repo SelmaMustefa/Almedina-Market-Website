@@ -42,33 +42,38 @@ export const ChapaVerificationModal: React.FC<ChapaVerificationModalProps> = ({
     (o) => o.chapaTxRef === txRef || o.id === txRef || o.orderNumber === txRef
   );
 
+  const ranRef = React.useRef(false);
+
   const runVerification = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/chapa/verify/${encodeURIComponent(txRef)}`);
-      const data = await response.json();
+      const result = await verifyChapaPayment(matchedOrder?.id || txRef);
 
-      if (data.success && data.isPaid) {
+      if (result.success) {
         setIsSuccess(true);
         setReceiptData({
-          amount: data.amount,
-          currency: data.currency || 'ETB',
-          reference: data.reference,
-          paymentMethod: data.paymentMethod,
-          status: data.status,
+          status: 'success',
+          message: result.message,
         });
-
-        // Trigger context state sync and Supabase update
-        if (matchedOrder) {
-          await verifyChapaPayment(matchedOrder.id);
-        } else {
-          await verifyChapaPayment(txRef);
+        let orderId = (result as { order?: { id: string } }).order?.id || matchedOrder?.id;
+        if (!orderId) {
+          try {
+            const stored = sessionStorage.getItem('almadina_chapa_return');
+            if (stored) orderId = JSON.parse(stored).orderId;
+          } catch {
+            // ignore
+          }
+        }
+        if (orderId && onOpenOrder) {
+          window.setTimeout(() => {
+            onOpenOrder(orderId as string);
+          }, 900);
         }
       } else {
         setIsSuccess(false);
         setReceiptData({
-          status: data.status || 'failed',
-          message: data.message || 'Payment not completed or unverified.',
+          status: 'failed',
+          message: result.message || 'Payment not completed or unverified.',
         });
       }
     } catch (err: any) {
@@ -84,9 +89,9 @@ export const ChapaVerificationModal: React.FC<ChapaVerificationModalProps> = ({
   };
 
   useEffect(() => {
-    if (txRef) {
-      runVerification();
-    }
+    if (!txRef || ranRef.current) return;
+    ranRef.current = true;
+    runVerification();
   }, [txRef]);
 
   return (

@@ -700,15 +700,33 @@ const MainAppContent: React.FC = () => {
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const txRef = urlParams.get('tx_ref') || urlParams.get('order_id') || urlParams.get('chapa_tx_ref');
-      const isChapaReturn =
-        urlParams.get('chapa_status') === 'success' ||
-        urlParams.get('status') === 'success' ||
-        urlParams.has('tx_ref');
+      const txRef =
+        urlParams.get('tx_ref') ||
+        urlParams.get('trx_ref') ||
+        urlParams.get('order_id') ||
+        urlParams.get('chapa_tx_ref');
+      const gatewayStatus = (urlParams.get('status') || urlParams.get('chapa_status') || '').toLowerCase();
+      let storedTx: string | null = null;
+      try {
+        const stored = sessionStorage.getItem('almadina_chapa_return');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          storedTx = parsed.txRef || parsed.orderId || null;
+        }
+      } catch {
+        storedTx = null;
+      }
 
-      if (isChapaReturn && txRef) {
-        setVerifyTxRef(txRef);
-        // Clean up URL parameters cleanly without refreshing page
+      const isChapaReturn =
+        urlParams.get('chapa_verify') === '1' ||
+        urlParams.has('chapa_verify') ||
+        gatewayStatus === 'success' ||
+        gatewayStatus === 'failed' ||
+        !!storedTx;
+
+      const refToVerify = txRef || storedTx;
+      if (isChapaReturn && refToVerify) {
+        setVerifyTxRef(refToVerify);
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       }
     } catch {
@@ -759,7 +777,9 @@ const MainAppContent: React.FC = () => {
         <OrderTrackingModal
           isOpen={!!trackingOrderId}
           onClose={() => setTrackingOrderId(null)}
-          initialHighlightOrderId={trackingOrderId}
+          highlightOrderId={trackingOrderId}
+          onOpenReturnReport={() => undefined}
+          onOpenReviewModal={() => undefined}
         />
       )}
 

@@ -62,7 +62,7 @@ import {
   fetchReturnsFromSupabase,
   upsertReturnToSupabase,
 } from '../lib/supabase';
-import { resolveOrderItems, cacheOrderItems } from '../utils/orderUtils';
+import { resolveOrderItems, cacheOrderItems, isOrderConfirmedForPayment } from '../utils/orderUtils';
 
 // ─── Admin configuration ──────────────────────────────────────────────────────
 // Configured via environment variables or authorized admin identifiers
@@ -182,6 +182,7 @@ interface AppContextType {
   cancelOrder: (orderId: string, reason?: string) => boolean;
   updateOrderStatus: (orderId: string, status: Order['orderStatus']) => void;
   verifyChapaPayment: (orderId: string) => Promise<{ success: boolean; message: string }>;
+  startChapaCheckout: (orderId: string) => Promise<{ success: boolean; checkoutUrl?: string; message: string }>;
   recordCashPaymentReceived: (orderId: string, autoComplete?: boolean) => void;
   confirmOrderViaEmail: (orderId: string) => void;
 
@@ -455,34 +456,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [orders]);
 
-  // Handle return redirect from Chapa checkout portal
-  useEffect(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const chapaStatus = searchParams.get('chapa_status');
-      const txRef = searchParams.get('tx_ref');
-      const orderId = searchParams.get('order_id');
-
-      if (chapaStatus === 'success' && (txRef || orderId)) {
-        // Clear search params cleanly
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const match = orders.find((o) => o.id === orderId || o.chapaTxRef === txRef);
-        if (match && match.paymentStatus !== 'paid') {
-          verifyChapaPayment(match.id);
-          showToast(`Payment received & confirmed for Order ${match.orderNumber}!`, 'success');
-        }
-      } else if (chapaStatus === 'failed' && (txRef || orderId)) {
-        // Clear search params cleanly
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const match = orders.find((o) => o.id === orderId || o.chapaTxRef === txRef);
-        if (match) {
-          simulateChapaPaymentFailure(match.id);
-        }
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }, [orders]);
+  // Returning from Chapa is handled in App.tsx: the return URL only opens
+  // verification. Orders are marked paid after /api/chapa/verify confirms Chapa.
 
   // ─── Supabase Sync & Hydration ─────────────────────────────────────────────
   useEffect(() => {
@@ -548,7 +523,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
               cacheOrderItems(r.id, r.orderNumber, itemsToKeep);
 
-              if (remoteTime >= localTime) {
+              if (existing.paymentStatus === 'paid' && r.paymentStatus !== 'paid' && r.paymentStatus !== 'refunded') {
+                map.set(r.id, { ...r, ...existing, paymentStatus: 'paid', items: itemsToKeep });
+              } else if (r.paymentStatus === 'paid') {
+                map.set(r.id, { ...existing, ...r, paymentStatus: 'paid', items: itemsToKeep });
+              } else if (remoteTime >= localTime) {
                 map.set(r.id, { ...r, items: itemsToKeep });
               } else {
                 map.set(r.id, { ...existing, items: itemsToKeep });
@@ -1296,57 +1275,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (isChapa) {
-      let chapaCheckoutUrl: string | undefined = undefined;
-      try {
-        const initRes = await fetch('/api/chapa/initialize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: newOrder.totalETB,
-            currency: 'ETB',
-            email: newOrder.customerEmail,
-            first_name: newOrder.customerName.split(' ')[0] || 'Customer',
-            last_name: newOrder.customerName.split(' ').slice(1).join(' ') || 'Customer',
-            phone_number: newOrder.customerPhone,
-            tx_ref: newOrder.chapaTxRef,
-            return_url: `${window.location.origin}/?chapa_status=success&tx_ref=${newOrder.chapaTxRef}&order_id=${newOrder.id}`,
-            customization: {
-              title: 'Almedina Market',
-              description: `Order ${newOrder.orderNumber}`,
-            },
-          }),
-        });
-
-        const initData = await initRes.json();
-        if (initData.success && initData.checkoutUrl) {
-          chapaCheckoutUrl = initData.checkoutUrl;
-          const orderWithCheckout = { ...newOrder, chapaCheckoutUrl };
-          setOrders((prev) => prev.map((o) => (o.id === newOrder.id ? orderWithCheckout : o)));
-          return {
-            success: true,
-            orderId: newOrder.id,
-            message: 'Redirecting to Chapa Ethiopian Payment Gateway...',
-            requiresChapaRedirect: true,
-            chapaCheckoutUrl,
-          };
-        }
-      } catch (e) {
-        console.warn('[Chapa Init]', e);
-      }
-
-      // Fallback checkout URL in test / simulated mode
-      chapaCheckoutUrl = `${window.location.origin}/?chapa_sim=1&tx_ref=${newOrder.chapaTxRef}&amount=${newOrder.totalETB}`;
-      const orderWithCheckout = { ...newOrder, chapaCheckoutUrl };
-      setOrders((prev) => prev.map((o) => (o.id === newOrder.id ? orderWithCheckout : o)));
       return {
         success: true,
         orderId: newOrder.id,
-        message: 'Redirecting to Chapa Ethiopian Payment Gateway...',
-        requiresChapaRedirect: true,
-        chapaCheckoutUrl,
+        message: 'Order placed. You can pay with Chapa after the shop confirms it.',
+        requiresChapaRedirect: false,
       };
     }
     return { success: true, orderId: newOrder.id, message: 'Order placed.' };
+  };
+
+  const requestChapaCheckout = async (order: Order): Promise<{ success: boolean; checkoutUrl?: string; txRef?: string; message: string }> => {
+    if (order.paymentStatus === 'paid') {
+      return { success: false, message: 'This order is already paid.' };
+    }
+
+    if (!isOrderConfirmedForPayment(order)) {
+      return { success: false, message: 'The shop must confirm your order before you can pay.' };
+    }
+
+    const liveCheckout = order.chapaCheckoutUrl && /checkout\.chapa\.co/i.test(order.chapaCheckoutUrl);
+    if (liveCheckout) {
+      return { success: true, checkoutUrl: order.chapaCheckoutUrl, txRef: order.chapaTxRef, message: 'Redirecting to Chapa...' };
+    }
+
+    const txRef = order.chapaTxRef || `ALM-TX-${Date.now()}`;
+    try {
+      const initRes = await fetch('/api/chapa/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: order.totalETB,
+          currency: 'ETB',
+          email: order.customerEmail,
+          first_name: order.customerName.split(' ')[0] || 'Customer',
+          last_name: order.customerName.split(' ').slice(1).join(' ') || 'Almedina',
+          phone_number: order.customerPhone,
+          tx_ref: txRef,
+          return_url: `${window.location.origin}/?chapa_verify=1&tx_ref=${encodeURIComponent(txRef)}&order_id=${encodeURIComponent(order.id)}`,
+          customization: {
+            title: 'Almedina Market',
+            description: `Order ${order.orderNumber}`,
+          },
+        }),
+      });
+
+      const initData = await initRes.json();
+      if (initData.success && initData.checkoutUrl) {
+        return {
+          success: true,
+          checkoutUrl: initData.checkoutUrl,
+          txRef,
+          message: 'Redirecting to Chapa...',
+        };
+      }
+
+      return {
+        success: false,
+        message: initData.message || 'Chapa could not start this payment. Check CHAPA_SECRET_KEY and try Pay Now.',
+      };
+    } catch (e: any) {
+      console.warn('[Chapa Init]', e);
+      return { success: false, message: 'Could not reach the payment server. Try Pay Now from your order.' };
+    }
+  };
+
+  const startChapaCheckout = async (orderId: string) => {
+    const order = orders.find((item) => item.id === orderId);
+    if (!order) return { success: false, message: 'Order not found.' };
+
+    const started = await requestChapaCheckout(order);
+    if (started.success && started.checkoutUrl) {
+      const updated = { ...order, chapaCheckoutUrl: started.checkoutUrl, chapaTxRef: started.txRef || order.chapaTxRef };
+      setOrders((prev) => prev.map((item) => (item.id === order.id ? updated : item)));
+      try {
+        sessionStorage.setItem(
+          'almadina_chapa_return',
+          JSON.stringify({ txRef: updated.chapaTxRef, orderId: order.id })
+        );
+      } catch {
+        // ignore
+      }
+      window.location.href = started.checkoutUrl;
+      return { success: true, checkoutUrl: started.checkoutUrl, message: started.message };
+    }
+
+    showToast(started.message, 'error');
+    return started;
   };
 
   const updateOrderQuantity = (orderId: string, productId: string, newQty: number): boolean => {
@@ -1406,66 +1421,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (updatedOrder) upsertOrderToSupabase(updatedOrder);
     if (status === 'out_for_delivery') {
       showToast('Your order is on the way.', 'info');
+    } else if (status === 'confirmed' && updatedOrder?.paymentMethod === 'chapa' && updatedOrder.paymentStatus !== 'paid') {
+      showToast(`Order confirmed. The customer can now pay with Chapa.`, 'success');
     } else {
       showToast(`Order status → ${status.replace(/_/g, ' ')}.`, 'success');
     }
   };
 
   const verifyChapaPayment = async (orderIdOrTxRef: string) => {
-    let o = orders.find(
+    let storedReturn: { txRef?: string; orderId?: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem('almadina_chapa_return');
+      storedReturn = raw ? JSON.parse(raw) : null;
+    } catch {
+      storedReturn = null;
+    }
+
+    const o = orders.find(
       (item) =>
         item.id === orderIdOrTxRef ||
         item.chapaTxRef === orderIdOrTxRef ||
-        item.orderNumber === orderIdOrTxRef
+        item.orderNumber === orderIdOrTxRef ||
+        (storedReturn?.orderId && item.id === storedReturn.orderId) ||
+        (storedReturn?.txRef && item.chapaTxRef === storedReturn.txRef)
     );
 
-    const txRefToVerify = o?.chapaTxRef || orderIdOrTxRef;
+    const txRefToVerify = o?.chapaTxRef || storedReturn?.txRef || orderIdOrTxRef;
+    if (!txRefToVerify) {
+      return { success: false, message: 'No Chapa transaction reference on this order.' };
+    }
 
-    if (txRefToVerify) {
-      try {
+    try {
+      let verifyData: any = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
         const verifyRes = await fetch(`/api/chapa/verify/${encodeURIComponent(txRefToVerify)}`);
-        const verifyData = await verifyRes.json();
-        if (verifyData.success && verifyData.isPaid) {
-          // Verified successfully
-        } else if (verifyData.isPaid === false && verifyData.isSimulation === false) {
-          showToast(verifyData.message || 'Payment not verified with Chapa.', 'warning');
-          return { success: false, message: verifyData.message || 'Payment not verified.' };
+        verifyData = await verifyRes.json();
+        if (verifyData.success && verifyData.isPaid) break;
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
         }
-      } catch (e) {
-        console.warn('[Chapa Verify]', e);
       }
-    }
 
-    let updatedOrder: Order | undefined;
-    const nowIso = new Date().toISOString();
-    setOrders((prev) =>
-      prev.map((item) => {
-        if (
-          item.id === orderIdOrTxRef ||
-          item.chapaTxRef === orderIdOrTxRef ||
-          item.orderNumber === orderIdOrTxRef ||
-          (o && item.id === o.id)
-        ) {
-          updatedOrder = {
-            ...item,
-            paymentStatus: 'paid',
-            orderStatus: item.orderStatus === 'cancelled' ? 'cancelled' : 'confirmed',
-            paidAt: nowIso,
-            updatedAt: nowIso,
-          };
-          return updatedOrder;
+      if (!(verifyData?.success && verifyData.isPaid)) {
+        const message = verifyData?.message || 'Payment is not completed on Chapa yet.';
+        return { success: false, message };
+      }
+
+      let updatedOrder: Order | undefined;
+      const nowIso = new Date().toISOString();
+      const matchId = o?.id || storedReturn?.orderId || orderIdOrTxRef;
+      setOrders((prev) =>
+        prev.map((item) => {
+          if (
+            item.id === matchId ||
+            item.chapaTxRef === txRefToVerify ||
+            item.id === orderIdOrTxRef ||
+            item.chapaTxRef === orderIdOrTxRef ||
+            item.orderNumber === orderIdOrTxRef
+          ) {
+            updatedOrder = {
+              ...item,
+              paymentStatus: 'paid',
+              orderStatus: item.orderStatus === 'cancelled' ? 'cancelled' : item.orderStatus,
+              paidAt: nowIso,
+              updatedAt: nowIso,
+            };
+            return updatedOrder;
+          }
+          return item;
+        })
+      );
+
+      if (updatedOrder) {
+        await upsertOrderToSupabase(updatedOrder);
+        try {
+          sessionStorage.removeItem('almadina_chapa_return');
+        } catch {
+          // ignore
         }
-        return item;
-      })
-    );
+        showToast(`Payment received. Order ${(updatedOrder as Order).orderNumber} is now paid.`, 'success');
+        return { success: true, message: 'Payment verified and order paid.', order: updatedOrder };
+      }
 
-    if (updatedOrder) {
-      upsertOrderToSupabase(updatedOrder);
-      showToast(`Payment verified! Order ${(updatedOrder as Order).orderNumber} is now Confirmed & Paid.`, 'success');
-      return { success: true, message: 'Payment verified and order confirmed.', order: updatedOrder };
+      return { success: true, message: 'Payment verified with Chapa.' };
+    } catch (e: any) {
+      console.warn('[Chapa Verify]', e);
+      const message = 'Could not verify payment with the server.';
+      showToast(message, 'error');
+      return { success: false, message };
     }
-
-    return { success: true, message: 'Payment verified on gateway.' };
   };
 
   const recordCashPaymentReceived = (orderId: string, autoComplete: boolean = true) => {
@@ -1935,6 +1979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     cancelOrder,
     updateOrderStatus,
     verifyChapaPayment,
+    startChapaCheckout,
     recordCashPaymentReceived,
     confirmOrderViaEmail,
     pendingChapaOrder,

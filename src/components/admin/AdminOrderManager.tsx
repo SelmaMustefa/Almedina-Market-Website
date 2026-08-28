@@ -7,7 +7,6 @@ import {
   Search,
   Filter,
   CheckCircle2,
-  CreditCard,
   DollarSign,
   Truck,
   Store,
@@ -25,7 +24,6 @@ export const AdminOrderManager: React.FC = () => {
     orders,
     products,
     updateOrderStatus,
-    verifyChapaPayment,
     recordCashPaymentReceived,
   } = useApp();
 
@@ -211,15 +209,6 @@ export const AdminOrderManager: React.FC = () => {
                           title="Confirm this pending order"
                         >
                           Confirm Order
-                        </button>
-                      )}
-
-                      {order.paymentStatus === 'payment_pending' && (
-                        <button
-                          onClick={() => verifyChapaPayment(order.id)}
-                          className="px-2.5 py-1 bg-cyan-700 hover:bg-cyan-800 text-white rounded font-bold text-[11px]"
-                        >
-                          Verify Chapa
                         </button>
                       )}
 

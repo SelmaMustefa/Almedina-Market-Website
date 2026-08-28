@@ -1,6 +1,13 @@
 import { Order, OrderItem, Product } from '../types';
 import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '../data/mockData';
 
+const STATUSES_ALLOWED_TO_PAY = ['confirmed', 'out_for_delivery', 'ready_for_pickup'];
+
+/** Customer may start Chapa only after an admin has confirmed the order. */
+export function isOrderConfirmedForPayment(order: Pick<Order, 'orderStatus'>): boolean {
+  return STATUSES_ALLOWED_TO_PAY.includes(order.orderStatus);
+}
+
 const CACHE_KEY = 'almadina_order_items_master_cache';
 
 /**

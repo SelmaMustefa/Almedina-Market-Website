@@ -461,7 +461,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                 <>
                   <CreditCard className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    You will be redirected to pay <strong>{formatETB(total)}</strong> securely via <strong>Chapa</strong> (supports Telebirr, CBE Birr, and Bank cards).
+                    You will pay <strong>{formatETB(total)}</strong> with <strong>Chapa</strong> (Telebirr, CBE Birr, or cards) after the shop confirms your order.
                   </span>
                 </>
               )}
@@ -523,7 +523,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                 : isMinSubtotalNotMet
                 ? `⚠️ Min. ${formatETB(1000)} required for delivery`
                 : paymentMethod === 'chapa' || paymentMethod === 'telebirr' || paymentMethod === 'cbe_birr'
-                ? `Pay with Chapa • ${formatETB(total)}`
+                ? `Place Order • ${formatETB(total)}`
                 : `Place Cash Order • ${formatETB(total)}`}
             </span>
           </button>

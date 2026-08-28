@@ -30,7 +30,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
     products,
     reviews,
     returnReports,
-    verifyChapaPayment,
     recordCashPaymentReceived,
     updateOrderStatus,
   } = useApp();
@@ -226,26 +225,15 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
                   {/* Quick Action Controls */}
                   <div className="flex flex-wrap items-center gap-2 self-start md:self-center">
                     {/* Payment action if pending */}
-                    {!isPaid && (
-                      <>
-                        <button
-                          onClick={() => verifyChapaPayment(order.id)}
-                          className="px-3 py-1.5 bg-cyan-700 hover:bg-cyan-800 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm text-xs"
-                          title="Verify Chapa Payment"
-                        >
-                          <CreditCard className="w-3.5 h-3.5" />
-                          <span>Verify Chapa</span>
-                        </button>
-
-                        <button
-                          onClick={() => recordCashPaymentReceived(order.id)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm text-xs"
-                          title="Mark Cash Payment Received"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Mark Paid</span>
-                        </button>
-                      </>
+                    {!isPaid && (order.paymentMethod === 'cash' || order.paymentMethod === 'cod' || order.paymentMethod === 'cop') && (
+                      <button
+                        onClick={() => recordCashPaymentReceived(order.id)}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg flex items-center gap-1 shadow-sm text-xs"
+                        title="Mark Cash Payment Received"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Mark Paid</span>
+                      </button>
                     )}
 
                     {/* Order Status progression */}

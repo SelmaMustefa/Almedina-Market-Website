@@ -1,0 +1,6 @@
+{
+  "name": "Almadina Grocery",
+  "description": "E-commerce platform for imported Saudi Arabian food products in Bethel, Addis Ababa, Ethiopia.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

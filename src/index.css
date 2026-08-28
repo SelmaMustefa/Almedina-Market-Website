@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #FDFCF5;
+    color: #1A1A1A;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  .dark body,
+  html.dark body {
+    background-color: #0B1120;
+    color: #F1F5F9;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom aesthetic scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F4F1E8;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1E293B;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}
+
+/* Subtle gallery border utility */
+.artistic-border {
+  border: 1px solid rgba(26, 26, 26, 0.12);
+}
+
+.dark .artistic-border {
+  border: 1px solid rgba(241, 245, 249, 0.12);
+}
+
+.artistic-card {
+  background-color: #FAF8F0;
+  border: 1px solid rgba(26, 26, 26, 0.12);
+  transition: all 0.25s ease;
+}
+
+.dark .artistic-card {
+  background-color: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #F3F4F6;
+}
+
+.artistic-card:hover {
+  border-color: rgba(26, 26, 26, 0.4);
+  box-shadow: 0 4px 20px -2px rgba(26, 26, 26, 0.06);
+}
+
+.dark .artistic-card:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}

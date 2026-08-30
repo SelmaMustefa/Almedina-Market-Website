@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { ALMADINA_SHOP_LOCATION } from '../../data/mockData';
 import { OrderItem } from '../../types';
-import { resolveOrderItems, isOrderConfirmedForPayment } from '../../utils/orderUtils';
+import { resolveOrderItems, isOrderConfirmedForPayment, orderBelongsToCustomer, getSessionPlacedOrderIds } from '../../utils/orderUtils';
 
 const GOOGLE_MAPS_EMBED_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -48,7 +48,6 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     updateOrderQuantity,
     cancelOrder,
     currentUser,
-    userRole,
     returnReports,
     startChapaCheckout,
   } = useApp();
@@ -64,34 +63,13 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     }
   };
 
-  // Retrieve placed order IDs stored in session/localStorage
-  const [sessionPlacedOrderIds, setSessionPlacedOrderIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('almadina_placed_order_ids');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [sessionPlacedOrderIds, setSessionPlacedOrderIds] = useState<string[]>(() => getSessionPlacedOrderIds());
 
-  // Keep session placed order IDs updated
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('almadina_placed_order_ids');
-      if (saved) setSessionPlacedOrderIds(JSON.parse(saved));
-    } catch {
-      // Ignore
-    }
+    setSessionPlacedOrderIds(getSessionPlacedOrderIds());
   }, [orders, isOpen]);
 
-  // Compute orders relevant to this customer / session
-  const customerOrders = orders.filter((o) => {
-    if (userRole === 'admin') return true;
-    if (currentUser && (o.userId === currentUser.id || sessionPlacedOrderIds.includes(o.id))) return true;
-    if (sessionPlacedOrderIds.includes(o.id)) return true;
-    // Guest fallback: show guest orders or top demo orders so user has full visibility
-    return o.userId.startsWith('usr-guest') || orders.indexOf(o) < 3;
-  });
+  const customerOrders = orders.filter((o) => orderBelongsToCustomer(o, currentUser, sessionPlacedOrderIds));
 
   // Auto-expand highlightOrderId or the newest order on open
   useEffect(() => {

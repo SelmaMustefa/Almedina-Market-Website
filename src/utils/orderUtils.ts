@@ -1,4 +1,4 @@
-import { Order, OrderItem, Product } from '../types';
+import { Order, OrderItem, Product, UserProfile } from '../types';
 import { INITIAL_ORDERS, INITIAL_PRODUCTS } from '../data/mockData';
 
 const STATUSES_ALLOWED_TO_PAY = ['confirmed', 'out_for_delivery', 'ready_for_pickup'];
@@ -201,4 +201,51 @@ export function resolveOrderItems(order: Order, productsList: Product[] = INITIA
   const reconstructed = reconstructItemsForSubtotal(order.subtotalETB, order.orderNumber, productsList);
   cacheOrderItems(order.id, order.orderNumber, reconstructed);
   return reconstructed;
+}
+
+function normalizePhoneDigits(phone: string): string {
+  return phone.replace(/\D/g, '').replace(/^251/, '').replace(/^0/, '');
+}
+
+export function getSessionPlacedOrderIds(): string[] {
+  try {
+    const saved = localStorage.getItem('almadina_placed_order_ids');
+    return saved ? (JSON.parse(saved) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Customer order history must only include orders belonging to the signed-in
+ * account (or, for guests, orders placed in this browser session).
+ */
+export function orderBelongsToCustomer(
+  order: Order,
+  user: Pick<UserProfile, 'id' | 'email' | 'phoneNumber'> | null,
+  sessionPlacedOrderIds: string[] = getSessionPlacedOrderIds()
+): boolean {
+  if (user?.id && order.userId && order.userId === user.id) {
+    return true;
+  }
+
+  if (user?.email && order.customerEmail) {
+    if (user.email.toLowerCase().trim() === order.customerEmail.toLowerCase().trim()) {
+      return true;
+    }
+  }
+
+  if (user?.phoneNumber) {
+    const userPhone = normalizePhoneDigits(user.phoneNumber);
+    const orderPhone = normalizePhoneDigits(order.customerPhone || '');
+    if (userPhone.length >= 8 && orderPhone.length >= 8 && userPhone === orderPhone) {
+      return true;
+    }
+  }
+
+  if (!user) {
+    return sessionPlacedOrderIds.includes(order.id);
+  }
+
+  return false;
 }

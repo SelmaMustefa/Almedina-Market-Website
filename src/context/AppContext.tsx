@@ -77,7 +77,9 @@ export const AUTHORIZED_ADMIN_EMAILS: string[] = [
 export const isAuthorizedAdmin = (user: { email?: string | null; uid?: string } | null): boolean => {
   if (!user) return false;
   if (ADMIN_UID && user.uid === ADMIN_UID) return true;
-  if (user.email && AUTHORIZED_ADMIN_EMAILS.includes(user.email.toLowerCase().trim())) return true;
+  const email = user.email?.toLowerCase().trim();
+  if (email && AUTHORIZED_ADMIN_EMAILS.includes(email)) return true;
+  if (CONFIGURED_ADMIN_EMAIL && email === CONFIGURED_ADMIN_EMAIL) return true;
   return false;
 };
 
@@ -669,6 +671,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loginUser = async (email: string, password: string): Promise<AuthResult> => {
     try {
       const credential = await signInWithEmailAndPassword(auth, email, password);
+      if (isAuthorizedAdmin({ email: credential.user.email, uid: credential.user.uid })) {
+        await signOut(auth);
+        return {
+          status: 'error',
+          message:
+            'This account is for store administration only and cannot sign in as a customer. Please use the Admin Portal.',
+        };
+      }
       setAuthModalOpen(false);
       setAuthRedirectMessage(null);
       setPendingVerificationEmail(null);
@@ -921,8 +931,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logoutAdmin = (): void => {
     setAdminSession({ isLoggedIn: false, is2FAVerified: false, activeDeviceId: '', sessionError: undefined });
-    setViewTab('storefront');
     setUserRole('guest');
+    void signOut(auth);
+    setViewTab('storefront');
     showToast('Admin signed out.', 'info');
   };
 

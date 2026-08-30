@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Order } from '../../types';
+import { orderBelongsToCustomer, getSessionPlacedOrderIds } from '../../utils/orderUtils';
 import {
   Star,
   MessageSquare,
@@ -37,23 +38,10 @@ export const ReviewSubmissionModal: React.FC<ReviewSubmissionModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Retrieve placed order IDs stored in session/localStorage
-  const sessionPlacedOrderIds: string[] = (() => {
-    try {
-      const saved = localStorage.getItem('almadina_placed_order_ids');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  })();
+  const sessionPlacedOrderIds = getSessionPlacedOrderIds();
 
   const eligibleOrders = orders.filter((o) => {
-    // Check if order belongs to user or session
-    const isUserOrder =
-      (currentUser && o.userId === currentUser.id) ||
-      (currentUser?.email && o.customerEmail?.toLowerCase() === currentUser.email.toLowerCase()) ||
-      (currentUser?.phoneNumber && o.customerPhone.includes(currentUser.phoneNumber.replace(/^\+251/, ''))) ||
-      sessionPlacedOrderIds.includes(o.id) ||
-      o.id === order?.id;
+    const isUserOrder = orderBelongsToCustomer(o, currentUser, sessionPlacedOrderIds);
 
     if (!isUserOrder) return false;
     if (o.orderStatus !== 'completed') return false;

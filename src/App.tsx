@@ -684,7 +684,7 @@ const StorefrontContent: React.FC = () => {
 
 // ─── Root App ─────────────────────────────────────────────────────────────────
 const MainAppContent: React.FC = () => {
-  const { viewTab, setViewTab, pendingChapaOrder, setPendingChapaOrder, authLoading, orders } = useApp();
+  const { viewTab, setViewTab, pendingChapaOrder, setPendingChapaOrder, authLoading, orders, userRole, adminSession } = useApp();
   const hash = useHashRoute();
   const [verifyTxRef, setVerifyTxRef] = useState<string | null>(null);
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
@@ -695,6 +695,14 @@ const MainAppContent: React.FC = () => {
       setViewTab('admin_dashboard');
     }
   }, [hash, setViewTab]);
+
+  // Admin accounts stay in the admin portal and cannot shop as a customer
+  useEffect(() => {
+    const isAdminAccount = userRole === 'admin' || (adminSession.isLoggedIn && adminSession.is2FAVerified);
+    if (isAdminAccount && viewTab !== 'admin_dashboard') {
+      setViewTab('admin_dashboard');
+    }
+  }, [userRole, adminSession.isLoggedIn, adminSession.is2FAVerified, viewTab, setViewTab]);
 
   // Check URL query parameters for Chapa redirect returns
   useEffect(() => {

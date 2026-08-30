@@ -18,6 +18,7 @@ import {
 import { Logo } from '../common/Logo';
 import { BRAND } from '../../constants/brand';
 import { CategoryId } from '../../types';
+import { orderBelongsToCustomer } from '../../utils/orderUtils';
 
 interface HeaderProps {
   searchQuery: string;
@@ -63,7 +64,8 @@ export const Header: React.FC<HeaderProps> = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const activeOrdersCount = orders.filter(
+  const myOrders = orders.filter((o) => orderBelongsToCustomer(o, currentUser));
+  const activeOrdersCount = myOrders.filter(
     (o) => o.orderStatus !== 'completed' && o.orderStatus !== 'cancelled'
   ).length;
 

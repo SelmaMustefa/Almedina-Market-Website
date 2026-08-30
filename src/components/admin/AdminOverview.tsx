@@ -25,7 +25,6 @@ interface AdminOverviewProps {
 
 export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
   const {
-    setViewTab,
     orders,
     products,
     reviews,
@@ -64,13 +63,6 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={() => setViewTab('storefront')}
-            className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Back to Storefront</span>
-          </button>
           <button
             onClick={() => onNavigate('reports')}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm"

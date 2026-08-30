@@ -38,7 +38,6 @@ interface AdminSidebarProps {
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, setActiveTab }) => {
   const {
-    setViewTab,
     adminSession,
     logoutAdmin,
     simulateAdminLoginOnOtherDevice,
@@ -94,15 +93,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeTab, setActive
             </p>
           </div>
         </div>
-
-        {/* Back to Customer Storefront Button */}
-        <button
-          onClick={() => setViewTab('storefront')}
-          className="w-full py-2.5 px-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 border border-emerald-500/30"
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Back to Storefront</span>
-        </button>
 
         {/* Menu Items */}
         <nav className="space-y-1">

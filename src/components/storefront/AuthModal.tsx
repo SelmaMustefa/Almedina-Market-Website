@@ -16,7 +16,6 @@ export const AuthModal: React.FC = () => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/70 backdrop-blur-md animate-fade-in overflow-y-auto">
       <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl animate-scale-up">
         <UnifiedAuthCard
-          initialAccountType="customer"
           onClose={handleClose}
           onSuccessCustomer={handleClose}
           embeddedInModal={true}

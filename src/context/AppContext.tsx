@@ -884,7 +884,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!authorized) {
         // Sign out because standard customers shouldn't access admin control
         await signOut(auth);
-        const msg = 'Access Denied: This account is not registered with administrator privileges. Please sign in via the Customer tab.';
+        const msg = 'Access Denied: This account is not registered with administrator privileges. Please sign in from the storefront.';
         showToast(msg, 'error');
         return { success: false, message: msg };
       }

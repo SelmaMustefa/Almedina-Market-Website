@@ -28,7 +28,6 @@ export const AdminLoginPage: React.FC = () => {
 
       <div className="w-full max-w-4xl animate-fade-in my-8">
         <UnifiedAuthCard
-          initialAccountType="admin"
           onSuccessAdmin={() => setViewTab('admin_dashboard')}
           onSuccessCustomer={() => setViewTab('storefront')}
         />

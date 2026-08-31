@@ -1,9 +1,27 @@
+# Dependencies
 node_modules/
+
+# Production
 build/
 dist/
+server.js
+server.cjs
+
+# Testing
 coverage/
+
+# Misc
 .DS_Store
 *.log
-.env*
-!.env.example
+npm-debug.log*
+
+# Environment
 .env
+.env.*
+!.env.example
+
+# IDE / Editor / AI
+.vscode/
+.idea/
+.gemini/
+.idx/

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirebaseAdmin } from '../config/firebaseAdmin';
 
 export interface AuthenticatedUser {
@@ -55,7 +55,7 @@ export async function authenticate(req: AuthenticatedRequest, res: Response, nex
   try {
     if (adminApp) {
       // Verify token with Firebase Admin
-      const decodedToken = await admin.auth(adminApp).verifyIdToken(token);
+      const decodedToken = await getAuth(adminApp).verifyIdToken(token);
       
       const role = (decodedToken.role || decodedToken.admin) === 'admin' || 
                    decodedToken.email === 'admin@almadinamarket.com' ||
@@ -116,7 +116,7 @@ export async function optionalAuth(req: AuthenticatedRequest, res: Response, nex
   try {
     const adminApp = getFirebaseAdmin();
     if (adminApp) {
-      const decodedToken = await admin.auth(adminApp).verifyIdToken(token);
+      const decodedToken = await getAuth(adminApp).verifyIdToken(token);
       req.user = {
         uid: decodedToken.uid,
         email: decodedToken.email,

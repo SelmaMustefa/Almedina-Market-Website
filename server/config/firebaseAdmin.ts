@@ -1,10 +1,10 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 
 // Lazy-initialized Firebase Admin App
-let firebaseAdminApp: admin.app.App | null = null;
+let firebaseAdminApp: App | null = null;
 let initAttempted = false;
 
-export function getFirebaseAdmin(): admin.app.App | null {
+export function getFirebaseAdmin(): App | null {
   if (initAttempted) {
     return firebaseAdminApp;
   }
@@ -17,8 +17,8 @@ export function getFirebaseAdmin(): admin.app.App | null {
     if (serviceAccountJson) {
       try {
         const credentials = JSON.parse(serviceAccountJson);
-        firebaseAdminApp = admin.initializeApp({
-          credential: admin.credential.cert(credentials),
+        firebaseAdminApp = initializeApp({
+          credential: cert(credentials),
           projectId: credentials.project_id || projectId,
         });
         console.log('[FirebaseAdmin] Initialized successfully with Service Account credentials');
@@ -28,8 +28,9 @@ export function getFirebaseAdmin(): admin.app.App | null {
       }
     }
 
-    if (admin.apps && admin.apps.length > 0) {
-      firebaseAdminApp = admin.apps[0]!;
+    const apps = getApps();
+    if (apps.length > 0) {
+      firebaseAdminApp = apps[0]!;
       return firebaseAdminApp;
     }
 

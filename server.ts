@@ -243,4 +243,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start the server if not running in a Serverless environment (like Vercel)
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

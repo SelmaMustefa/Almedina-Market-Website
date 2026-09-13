@@ -9,10 +9,15 @@ import apiRouter from './server/index';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 4173;
 
 app.use(cors());
 app.use(express.json());
+
+// Container Health Check Route (for EthioDeploy / Docker / orchestrators)
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).send('OK');
+});
 
 // Mount modular REST APIs under /api
 app.use('/api', apiRouter);

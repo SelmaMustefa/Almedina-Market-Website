@@ -40,70 +40,25 @@ async function verifyWithChapa(txRef: string) {
     return { ok: false as const, message: 'Chapa secret key is not configured on the server.' };
   }
 
-  const isTestMode = secretKey.startsWith('CHASECK_TEST');
   const apiUrl = getChapaBaseUrl();
+  const response = await fetch(`${apiUrl}/transaction/verify/${encodeURIComponent(txRef)}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
-  try {
-    const response = await fetch(`${apiUrl}/transaction/verify/${encodeURIComponent(txRef)}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = (await response.json()) as any;
-
-    if (response.ok && data.status === 'success') {
-      return { ok: true as const, data };
-    }
-
-    // In Chapa TEST mode: if transaction was initiated with test credentials, allow successful simulation
-    if (isTestMode && txRef) {
-      console.log(`[Chapa Gateway] Test mode simulation fallback for ${txRef}`);
-      return {
-        ok: true as const,
-        data: {
-          status: 'success',
-          message: 'Payment verified in test mode.',
-          data: {
-            status: 'success',
-            tx_ref: txRef,
-            reference: `TEST-REF-${Date.now()}`,
-            method: 'test_telebirr',
-            currency: 'ETB',
-          },
-        },
-      };
-    }
-
+  const data = (await response.json()) as any;
+  if (!response.ok || data.status !== 'success') {
     return {
       ok: false as const,
       message: typeof data.message === 'string' ? data.message : 'Payment not verified or not completed yet.',
       data,
     };
-  } catch (err: any) {
-    if (isTestMode) {
-      return {
-        ok: true as const,
-        data: {
-          status: 'success',
-          message: 'Payment simulated in test mode.',
-          data: {
-            status: 'success',
-            tx_ref: txRef,
-            reference: `TEST-REF-${Date.now()}`,
-            method: 'test_telebirr',
-            currency: 'ETB',
-          },
-        },
-      };
-    }
-    return {
-      ok: false as const,
-      message: err.message || 'Error communicating with Chapa.',
-    };
   }
+
+  return { ok: true as const, data };
 }
 
 async function markOrderPaid(txRef: string, chapaPayload: any) {

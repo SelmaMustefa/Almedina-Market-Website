@@ -567,10 +567,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const showToast = (_message: string, _type: Toast['type'] = 'info') => {
-    // Notifications silenced / removed from the UI as requested
+  const showToast = (message: string, type: Toast['type'] = 'info') => {
+    const id = 'toast-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4500);
   };
-  const removeToast = (_id: string) => {};
+  const removeToast = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   // ─── Firebase Auth State Listener ─────────────────────────────────────────
   useEffect(() => {

@@ -98,7 +98,6 @@ const StorefrontContent: React.FC = () => {
     authModalOpen,
     setAuthModalOpen,
     authRedirectMessage,
-    userRole,
     setViewTab,
   } = useApp();
 
@@ -249,42 +248,42 @@ const StorefrontContent: React.FC = () => {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-emerald-200/80 dark:border-slate-700 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+            <div className="bg-white dark:bg-slate-850 rounded-2xl border border-emerald-200/80 dark:border-slate-700/80 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
                 🌴
               </div>
-              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-white">Specialty Imports</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-slate-100">Specialty Imports</h3>
+              <p className="text-xs text-[#1A1A1A]/75 dark:text-slate-400 leading-relaxed">
                 Authentic Saudi Arabia Ajwa dates, aromatic Arabic coffees, ghee, pure honeys, and rare spices sourced with uncompromising quality.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-emerald-200/80 dark:border-slate-700 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+            <div className="bg-white dark:bg-slate-850 rounded-2xl border border-emerald-200/80 dark:border-slate-700/80 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
                 📍
               </div>
-              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-white">Bethel Storefront</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-slate-100">Bethel Storefront</h3>
+              <p className="text-xs text-[#1A1A1A]/75 dark:text-slate-400 leading-relaxed">
                 Visit our physical store on Bethel Main Road for free in-store pickups, warm Ethiopian hospitality, and personal assistance.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-emerald-200/80 dark:border-slate-700 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+            <div className="bg-white dark:bg-slate-850 rounded-2xl border border-emerald-200/80 dark:border-slate-700/80 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
                 🚚
               </div>
-              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-white">Precision GPS Delivery</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-slate-100">Precision GPS Delivery</h3>
+              <p className="text-xs text-[#1A1A1A]/75 dark:text-slate-400 leading-relaxed">
                 Live distance auto-calculation within 6.0 km. Instant delivery straight to your residential or office gate in Addis Ababa.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-emerald-200/80 dark:border-slate-700 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
+            <div className="bg-white dark:bg-slate-850 rounded-2xl border border-emerald-200/80 dark:border-slate-700/80 p-5 space-y-3 shadow-xs hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-lg">
                 🛡️
               </div>
-              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-white">Same-Day Returns</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              <h3 className="font-bold text-base text-[#1A1A1A] dark:text-slate-100">Same-Day Returns</h3>
+              <p className="text-xs text-[#1A1A1A]/75 dark:text-slate-400 leading-relaxed">
                 Submit photo evidence on the same calendar day for instant return processing, product exchanges, or full refunds.
               </p>
             </div>
@@ -466,70 +465,20 @@ const StorefrontContent: React.FC = () => {
       {/* Shopping Lists Modal */}
       {shoppingListsOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FAF8F0] dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-5 shadow-2xl border border-amber-200/60 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-amber-900/10 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <ListOrdered className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
-                <h2 className="text-lg font-bold font-serif text-[#1A1A1A] dark:text-slate-100">Saved Shopping Lists</h2>
-              </div>
-              <button onClick={() => setShoppingListsOpen(false)} className="text-[#1A1A1A]/50 dark:text-slate-400 hover:text-[#1A1A1A] dark:hover:text-white p-1">
-                <X className="w-5 h-5" />
+          <div className="bg-[#FAF8F0] rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-5 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 pb-3">
+              <div className="flex items-center gap-2"><ListOrdered className="w-5 h-5 text-emerald-700" /><h2 className="text-lg font-bold font-serif text-[#1A1A1A]">Shopping Lists</h2></div>
+              <button onClick={() => setShoppingListsOpen(false)} className="text-[#1A1A1A]/50 hover:text-[#1A1A1A] p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="text" placeholder="New List Name..." value={newListName} onChange={(e) => setNewListName(e.target.value)} className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-[#1A1A1A] focus:outline-none focus:ring-1 focus:ring-emerald-600" />
+              <button onClick={() => { if (newListName.trim()) { createShoppingList(newListName.trim()); setNewListName(''); } }} className="px-4 py-2 bg-[#1A1A1A] text-[#FDFCF5] text-xs font-semibold rounded-xl hover:bg-[#333333] transition-colors flex items-center gap-1 shrink-0 min-h-[40px]">
+                <Plus className="w-4 h-4" /><span>Create</span>
               </button>
             </div>
-
-            {userRole === 'guest' ? (
-              <div className="text-center py-12 px-4 space-y-4 max-w-sm mx-auto">
-                <div className="w-16 h-16 rounded-full bg-peach-50 dark:bg-slate-800 border border-amber-200 dark:border-slate-700 flex items-center justify-center mx-auto text-amber-700 dark:text-amber-400">
-                  <ListOrdered className="w-8 h-8" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Sign in to save/view lists
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Your personal shopping lists are synced to your account so you can access them anywhere.
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShoppingListsOpen(false);
-                    setAuthRedirectMessage('Please sign in to save and manage shopping lists.');
-                    setAuthModalOpen(true);
-                  }}
-                  className="w-full py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-colors min-h-[44px]"
-                >
-                  Sign In / Create Account
-                </button>
-              </div>
+            {shoppingLists.length === 0 ? (
+              <p className="text-xs text-[#1A1A1A]/60 py-6 text-center">No saved lists.</p>
             ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="New List Name (e.g. Ramadan Specials, Weekly Dates)..."
-                    value={newListName}
-                    onChange={(e) => setNewListName(e.target.value)}
-                    className="flex-1 bg-white dark:bg-slate-800 border border-amber-200/80 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-[#1A1A1A] dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-600"
-                  />
-                  <button
-                    onClick={() => {
-                      if (newListName.trim()) {
-                        createShoppingList(newListName.trim());
-                        setNewListName('');
-                      }
-                    }}
-                    className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold rounded-xl transition-colors flex items-center gap-1 shrink-0 min-h-[40px]"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Create</span>
-                  </button>
-                </div>
-
-                {shoppingLists.length === 0 ? (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 py-8 text-center italic bg-white dark:bg-slate-800/40 rounded-xl border border-amber-100 dark:border-slate-800">
-                    No saved shopping lists yet. Create your first list above!
-                  </p>
-                ) : (
               <div className="space-y-4">
                 {shoppingLists.map((list) => (
                   <div key={list.id} className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
@@ -619,8 +568,6 @@ const StorefrontContent: React.FC = () => {
                   </div>
                 ))}
               </div>
-            )}
-              </>
             )}
           </div>
         </div>

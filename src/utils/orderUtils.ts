@@ -217,33 +217,34 @@ export function getSessionPlacedOrderIds(): string[] {
 }
 
 /**
- * Customer order history must only include orders belonging strictly to the signed-in
- * account. If no user is logged in, returns false so unauthenticated sessions see 0 orders.
+ * Customer order history must only include orders belonging to the signed-in
+ * account (or, for guests, orders placed in this browser session).
  */
 export function orderBelongsToCustomer(
   order: Order,
-  user: Pick<UserProfile, 'id' | 'email' | 'phoneNumber'> | null
+  user: Pick<UserProfile, 'id' | 'email' | 'phoneNumber'> | null,
+  sessionPlacedOrderIds: string[] = getSessionPlacedOrderIds()
 ): boolean {
-  if (!user || !user.id) {
-    return false;
-  }
-
-  if (order.userId && order.userId === user.id) {
+  if (user?.id && order.userId && order.userId === user.id) {
     return true;
   }
 
-  if (user.email && order.customerEmail) {
+  if (user?.email && order.customerEmail) {
     if (user.email.toLowerCase().trim() === order.customerEmail.toLowerCase().trim()) {
       return true;
     }
   }
 
-  if (user.phoneNumber) {
+  if (user?.phoneNumber) {
     const userPhone = normalizePhoneDigits(user.phoneNumber);
     const orderPhone = normalizePhoneDigits(order.customerPhone || '');
     if (userPhone.length >= 8 && orderPhone.length >= 8 && userPhone === orderPhone) {
       return true;
     }
+  }
+
+  if (!user) {
+    return sessionPlacedOrderIds.includes(order.id);
   }
 
   return false;

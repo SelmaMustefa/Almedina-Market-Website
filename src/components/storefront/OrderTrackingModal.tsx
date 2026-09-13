@@ -50,9 +50,6 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     currentUser,
     returnReports,
     startChapaCheckout,
-    userRole,
-    setAuthModalOpen,
-    setAuthRedirectMessage,
   } = useApp();
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [payingOrderId, setPayingOrderId] = useState<string | null>(null);
@@ -66,10 +63,13 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
     }
   };
 
-  const isAuthenticated = Boolean(currentUser?.isLoggedIn && currentUser?.id && userRole !== 'guest');
-  const customerOrders = isAuthenticated
-    ? orders.filter((o) => orderBelongsToCustomer(o, currentUser))
-    : [];
+  const [sessionPlacedOrderIds, setSessionPlacedOrderIds] = useState<string[]>(() => getSessionPlacedOrderIds());
+
+  useEffect(() => {
+    setSessionPlacedOrderIds(getSessionPlacedOrderIds());
+  }, [orders, isOpen]);
+
+  const customerOrders = orders.filter((o) => orderBelongsToCustomer(o, currentUser, sessionPlacedOrderIds));
 
   // Auto-expand highlightOrderId or the newest order on open
   useEffect(() => {
@@ -127,9 +127,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
             </div>
             <div>
               <h2 className="font-bold text-base">My Order Details & Status Tracking</h2>
-              <p className="text-xs text-slate-400">
-                {isAuthenticated ? `Orders for ${currentUser?.name || currentUser?.email}` : 'Almedina Market • Bethel, Addis Ababa'}
-              </p>
+              <p className="text-xs text-slate-400">Almedina Market • Bethel, Addis Ababa</p>
             </div>
           </div>
           <button
@@ -142,36 +140,12 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
-          {!isAuthenticated ? (
-            <div className="text-center py-16 px-4 space-y-4 max-w-md mx-auto">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
-                <PackageCheck className="w-8 h-8 text-slate-400" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  Sign in to view your order history
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Orders are securely linked to your registered account. Please sign in to view your order history, delivery details, and live status.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  onClose();
-                  setAuthRedirectMessage('Please sign in to view your order history.');
-                  setAuthModalOpen(true);
-                }}
-                className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-colors min-h-[44px]"
-              >
-                <span>Sign In / Create Account</span>
-              </button>
-            </div>
-          ) : customerOrders.length === 0 ? (
+          {customerOrders.length === 0 ? (
             <div className="text-center py-16 space-y-3">
               <PackageCheck className="w-12 h-12 text-slate-300 mx-auto" />
               <p className="font-bold text-slate-700 text-sm">No orders placed yet</p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Once you place an order, all your detailed order specs, fulfillment progress, and live map tracking will appear right here.
+                Once you place an order from the cart, all your detailed order specs, fulfillment progress, and live map tracking will appear right here.
               </p>
             </div>
           ) : (

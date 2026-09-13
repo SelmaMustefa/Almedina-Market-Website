@@ -64,8 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const isAuthenticated = Boolean(currentUser?.isLoggedIn && currentUser?.id && userRole !== 'guest');
-  const myOrders = isAuthenticated ? orders.filter((o) => orderBelongsToCustomer(o, currentUser)) : [];
+  const myOrders = orders.filter((o) => orderBelongsToCustomer(o, currentUser));
   const activeOrdersCount = myOrders.filter(
     (o) => o.orderStatus !== 'completed' && o.orderStatus !== 'cancelled'
   ).length;
@@ -187,7 +186,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Orders</span>
-              {isAuthenticated && activeOrdersCount > 0 && (
+              {activeOrdersCount > 0 && (
                 <span className="bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
                   {activeOrdersCount}
                 </span>
@@ -374,7 +373,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <PackageCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <span className="font-semibold">Order History</span>
-              {isAuthenticated && activeOrdersCount > 0 && (
+              {activeOrdersCount > 0 && (
                 <span className="ml-auto bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {activeOrdersCount}
                 </span>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Order } from '../../types';
-import { orderBelongsToCustomer, getSessionPlacedOrderIds } from '../../utils/orderUtils';
+import { orderBelongsToCustomer } from '../../utils/orderUtils';
 import {
   Star,
   MessageSquare,
@@ -37,11 +37,8 @@ export const ReviewSubmissionModal: React.FC<ReviewSubmissionModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Retrieve placed order IDs stored in session/localStorage
-  const sessionPlacedOrderIds = getSessionPlacedOrderIds();
-
   const eligibleOrders = orders.filter((o) => {
-    const isUserOrder = orderBelongsToCustomer(o, currentUser, sessionPlacedOrderIds);
+    const isUserOrder = orderBelongsToCustomer(o, currentUser);
 
     if (!isUserOrder) return false;
     if (o.orderStatus !== 'completed') return false;

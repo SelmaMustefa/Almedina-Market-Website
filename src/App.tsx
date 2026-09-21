@@ -98,6 +98,7 @@ const StorefrontContent: React.FC = () => {
     authModalOpen,
     setAuthModalOpen,
     authRedirectMessage,
+    setAuthRedirectMessage,
     userRole,
     setViewTab,
   } = useApp();

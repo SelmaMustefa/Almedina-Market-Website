@@ -268,18 +268,31 @@ export async function deleteProductFromSupabase(id: string): Promise<boolean> {
 // ─── Orders Sync ───────────────────────────────────────────────────────────
 export async function fetchOrdersFromSupabase(): Promise<Order[] | null> {
   try {
-    console.log('[Supabase Orders] Fetching all global orders from "orders" table...');
-    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    if (error) {
-      console.error('❌ Supabase fetchOrders error:', error.message, error.details || '');
-      return null;
-    }
-    if (!data) {
-      console.warn('[Supabase Orders] Received null data response from orders query');
-      return [];
+    console.log('[Supabase Orders] Fetching all global orders from database...');
+    const { data: rawData, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    let data = rawData;
+
+    if (error || !data) {
+      console.warn('⚠️ Supabase direct fetchOrders note:', error?.message || 'No data returned. Checking backend API...');
+      try {
+        const apiRes = await fetch('/api/orders');
+        if (apiRes.ok) {
+          const apiJson = await apiRes.json();
+          if (apiJson.success && Array.isArray(apiJson.orders)) {
+            data = apiJson.orders;
+            console.log(`✅ [Backend API] Fetched ${data.length} orders via Server Admin API.`);
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend API orders fetch notice:', apiErr);
+      }
     }
 
-    console.log(`✅ [Supabase Orders] Fetched ${data.length} total orders from database.`);
+    if (!data) {
+      return null;
+    }
+
+    console.log(`✅ [Supabase Orders] Processed ${data.length} total orders from database.`);
 
     // Attempt to also fetch normalized order_items if table exists
     let itemsByOrderId = new Map<string, any[]>();
@@ -544,6 +557,37 @@ export async function upsertOrderToSupabase(
       console.log('✅ Order saved to Supabase (no user_id fallback):', order.id);
       syncOrderItemsToSupabase(order);
       return { success: true };
+    }
+
+    // Fallback 4: If direct client connection is blocked by browser network/RLS, sync via backend API
+    try {
+      console.log('[Supabase Orders] Attempting server-side API sync fallback...');
+      const apiRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: order.items,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          customerEmail: user?.email || order.customerEmail,
+          fulfillmentType: cleanFulfillment,
+          deliveryAddress: order.deliveryLocation?.addressText,
+          deliveryLandmark: order.deliveryLocation?.landmark,
+          coordinates: order.deliveryLocation ? { lat: order.deliveryLocation.latitude, lng: order.deliveryLocation.longitude } : undefined,
+          paymentMethod: cleanMethod,
+          notes: order.notes,
+        }),
+      });
+
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        if (apiData.success) {
+          console.log('✅ Order saved to database via Server API fallback:', order.id);
+          return { success: true };
+        }
+      }
+    } catch (apiErr) {
+      console.warn('[Supabase Orders] Server API fallback notice:', apiErr);
     }
 
     console.error('❌ Supabase order upsert failed:', coreErr.message || noUserErr?.message);

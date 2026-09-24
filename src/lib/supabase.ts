@@ -268,17 +268,26 @@ export async function deleteProductFromSupabase(id: string): Promise<boolean> {
 // ─── Orders Sync ───────────────────────────────────────────────────────────
 export async function fetchOrdersFromSupabase(): Promise<Order[] | null> {
   try {
+    console.log('[Supabase Orders] Fetching all global orders from "orders" table...');
     const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    if (error || !data || data.length === 0) {
-      if (error) console.warn('Supabase fetchOrders warning:', error.message);
+    if (error) {
+      console.error('❌ Supabase fetchOrders error:', error.message, error.details || '');
       return null;
     }
+    if (!data) {
+      console.warn('[Supabase Orders] Received null data response from orders query');
+      return [];
+    }
+
+    console.log(`✅ [Supabase Orders] Fetched ${data.length} total orders from database.`);
 
     // Attempt to also fetch normalized order_items if table exists
     let itemsByOrderId = new Map<string, any[]>();
     try {
-      const { data: orderItemRows } = await supabase.from('order_items').select('*');
-      if (orderItemRows && orderItemRows.length > 0) {
+      const { data: orderItemRows, error: itemsErr } = await supabase.from('order_items').select('*');
+      if (itemsErr) {
+        console.warn('[Supabase Orders] order_items table fetch notice:', itemsErr.message);
+      } else if (orderItemRows && orderItemRows.length > 0) {
         orderItemRows.forEach((itemRow: any) => {
           const oid = itemRow.order_id || itemRow.orderId;
           if (!oid) return;
@@ -359,8 +368,37 @@ export async function fetchOrdersFromSupabase(): Promise<Order[] | null> {
       };
     });
   } catch (err) {
-    console.error('Exception fetching orders from Supabase:', err);
+    console.error('❌ Exception fetching orders from Supabase:', err);
     return null;
+  }
+}
+
+/**
+ * Real-time subscription to orders table changes (INSERT, UPDATE, DELETE)
+ */
+export function subscribeToOrdersRealtime(onOrderChange: () => void): () => void {
+  try {
+    const channel = supabase
+      .channel('schema-db-orders-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('⚡ [Supabase Realtime] Order table change detected:', payload.eventType, (payload.new as any)?.order_number || (payload.old as any)?.id);
+          onOrderChange();
+        }
+      )
+      .subscribe((status) => {
+        console.log(`📡 [Supabase Realtime] Orders channel subscription status: ${status}`);
+      });
+
+    return () => {
+      console.log('🔌 [Supabase Realtime] Unsubscribing from orders channel');
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn('⚠️ [Supabase Realtime] Failed to initialize order real-time listener:', err);
+    return () => {};
   }
 }
 
@@ -408,6 +446,16 @@ export async function upsertOrderToSupabase(
       await syncFirebaseUserToSupabase(user);
     }
 
+    // Strict normalization for Postgres CHECK constraints
+    const rawMethod = String(order.paymentMethod || '').toLowerCase().trim();
+    const cleanMethod: 'chapa' | 'cash' =
+      rawMethod === 'chapa' || rawMethod === 'telebirr' || rawMethod === 'cbe_birr' || rawMethod === 'online'
+        ? 'chapa'
+        : 'cash';
+
+    const rawFulfillment = String(order.fulfillmentType || '').toLowerCase().trim();
+    const cleanFulfillment: 'delivery' | 'pickup' = rawFulfillment === 'pickup' ? 'pickup' : 'delivery';
+
     // 2. Full payload with snake_case naming and dual schema compatibility
     const fullPayload: Record<string, any> = {
       id: order.id,
@@ -416,11 +464,11 @@ export async function upsertOrderToSupabase(
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
       customer_email: user?.email || null,
-      fulfillment_type: order.fulfillmentType,
+      fulfillment_type: cleanFulfillment,
       subtotal_etb: order.subtotalETB,
       delivery_fee_etb: order.deliveryFeeETB,
       total_etb: order.totalETB,
-      payment_method: order.paymentMethod,
+      payment_method: cleanMethod,
       payment_status: order.paymentStatus,
       order_status: order.orderStatus,
       chapa_tx_ref: order.chapaTxRef || null,
@@ -433,7 +481,7 @@ export async function upsertOrderToSupabase(
 
     if (order.deliveryLocation) {
       fullPayload.delivery_location = order.deliveryLocation;
-      fullPayload.delivery_address_text = order.deliveryLocation.addressText || (order.fulfillmentType === 'pickup' ? 'Bethel Store Pickup' : 'Addis Ababa');
+      fullPayload.delivery_address_text = order.deliveryLocation.addressText || (cleanFulfillment === 'pickup' ? 'Bethel Store Pickup' : 'Addis Ababa');
       fullPayload.delivery_landmark = order.deliveryLocation.landmark || null;
       fullPayload.delivery_latitude = order.deliveryLocation.latitude ?? null;
       fullPayload.delivery_longitude = order.deliveryLocation.longitude ?? null;
@@ -471,11 +519,11 @@ export async function upsertOrderToSupabase(
       user_id: order.userId,
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
-      fulfillment_type: order.fulfillmentType,
+      fulfillment_type: cleanFulfillment,
       subtotal_etb: order.subtotalETB,
       delivery_fee_etb: order.deliveryFeeETB,
       total_etb: order.totalETB,
-      payment_method: order.paymentMethod,
+      payment_method: cleanMethod,
       payment_status: order.paymentStatus,
       order_status: order.orderStatus,
       created_at: order.createdAt,

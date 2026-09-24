@@ -131,12 +131,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     setIsSubmitting(true);
 
     try {
+      console.log('[CheckoutModal] Submitting order payload:', {
+        fulfillmentType,
+        deliveryLocation: deliveryLoc,
+        paymentMethod,
+        notes: orderNotes,
+      });
+
       const result = await createOrder({
         fulfillmentType,
         deliveryLocation: deliveryLoc,
         paymentMethod,
         notes: orderNotes,
       });
+
+      console.log('[CheckoutModal] createOrder response:', result);
 
       if (!result.success) {
         setIsSubmitting(false);
@@ -162,6 +171,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         }
       }
     } catch (err: any) {
+      console.error('[CheckoutModal] Error during order submission:', err);
       setIsSubmitting(false);
       setErrorMessage(err.message || 'Failed to process order.');
     }

@@ -61,6 +61,8 @@ import {
   upsertContactToSupabase,
   fetchReturnsFromSupabase,
   upsertReturnToSupabase,
+  fetchUserSavedProductIds,
+  saveUserSavedProductIds,
 } from '../lib/supabase';
 import { resolveOrderItems, cacheOrderItems, isOrderConfirmedForPayment } from '../utils/orderUtils';
 
@@ -353,8 +355,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_PRODUCTS;
   });
+  const getStoredFavorites = (userId?: string): string[] => {
+    try {
+      if (userId) {
+        const userSaved = localStorage.getItem(`almadina_saved_products_${userId}`);
+        if (userSaved) {
+          const parsed = JSON.parse(userSaved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      }
+      const guestSaved = localStorage.getItem('almadina_saved_products_guest') || localStorage.getItem('almadina_favorites_v1');
+      if (guestSaved) {
+        const parsed = JSON.parse(guestSaved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // Ignore parse error
+    }
+    return [];
+  };
+
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => getStoredFavorites());
   const [shoppingLists, setShoppingLists] = useState<NamedShoppingList[]>([]);
   const [isSyncingDatabase, setIsSyncingDatabase] = useState(false);
   
@@ -457,6 +479,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ignore storage error
     }
   }, [orders]);
+
+  // ─── User Favorites / Saved Products Persistence & Sync ────────────────────
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncUserFavorites() {
+      const userId = currentUser?.id;
+      if (!userId) {
+        // Guest user: ensure local guest favorites are loaded into state if not already
+        const guestFavs = getStoredFavorites();
+        if (isMounted && guestFavs.length > 0 && favorites.length === 0) {
+          setFavorites(guestFavs);
+        }
+        return;
+      }
+
+      // 1. Immediately restore from user-specific local storage
+      const userCachedFavs = getStoredFavorites(userId);
+      const guestCachedFavs = getStoredFavorites(); // check if any guest items to migrate
+      const mergedInitial = Array.from(new Set([...userCachedFavs, ...guestCachedFavs]));
+
+      if (isMounted && mergedInitial.length > 0) {
+        setFavorites(mergedInitial);
+        try {
+          localStorage.setItem(`almadina_saved_products_${userId}`, JSON.stringify(mergedInitial));
+        } catch {
+          // ignore
+        }
+      }
+
+      // 2. Fetch remote saved products from Supabase
+      try {
+        const remoteFavs = await fetchUserSavedProductIds(userId);
+        if (!isMounted) return;
+
+        if (remoteFavs !== null && Array.isArray(remoteFavs)) {
+          const finalMerged = Array.from(new Set([...mergedInitial, ...remoteFavs]));
+          setFavorites(finalMerged);
+          try {
+            localStorage.setItem(`almadina_saved_products_${userId}`, JSON.stringify(finalMerged));
+          } catch {
+            // ignore
+          }
+
+          // If local had items not yet in remote, sync to backend
+          if (finalMerged.length > remoteFavs.length) {
+            saveUserSavedProductIds(userId, finalMerged);
+          }
+        } else if (mergedInitial.length > 0) {
+          // Push initial local items to remote
+          saveUserSavedProductIds(userId, mergedInitial);
+        }
+      } catch (err) {
+        console.warn('Sync user saved products warning:', err);
+      }
+    }
+
+    syncUserFavorites();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Returning from Chapa is handled in App.tsx: the return URL only opens
   // verification. Orders are marked paid after /api/chapa/verify confirms Chapa.
@@ -751,7 +836,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
     setUserRole('guest');
     setCart([]);
-    setFavorites([]);
+    setFavorites(getStoredFavorites());
     setPendingVerificationEmail(null);
     showToast('You have been signed out.', 'info');
   };
@@ -1151,12 +1236,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ─── Favorites ─────────────────────────────────────────────────────────────
   const toggleFavorite = (productId: string) => {
-    if (userRole === 'guest') {
-      setAuthRedirectMessage('Please sign in to save favourites.');
-      setAuthModalOpen(true);
-      return;
-    }
-    setFavorites((prev) => prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]);
+    setFavorites((prev) => {
+      const isCurrentlySaved = prev.includes(productId);
+      const updated = isCurrentlySaved
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId];
+
+      // Save to user-specific or guest local storage
+      try {
+        if (currentUser?.id) {
+          localStorage.setItem(`almadina_saved_products_${currentUser.id}`, JSON.stringify(updated));
+          saveUserSavedProductIds(currentUser.id, updated);
+        } else {
+          localStorage.setItem('almadina_saved_products_guest', JSON.stringify(updated));
+        }
+      } catch {
+        // ignore storage error
+      }
+
+      if (isCurrentlySaved) {
+        showToast('Item removed from saved favorites.', 'info');
+      } else {
+        showToast('Item saved to your favorites!', 'success');
+      }
+
+      return updated;
+    });
   };
 
   // ─── Shopping Lists ────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ export interface UserProfile {
   avatar: string;
   isLoggedIn: boolean;
   isEmailVerified: boolean;
+  savedProductIds?: string[];
   savedAddresses?: {
     id: string;
     label: string;

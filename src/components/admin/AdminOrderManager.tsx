@@ -15,6 +15,7 @@ import {
   XCircle,
   MapPin,
   Package,
+  RefreshCw,
 } from 'lucide-react';
 
 const GOOGLE_MAPS_EMBED_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
@@ -22,6 +23,7 @@ const GOOGLE_MAPS_EMBED_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 export const AdminOrderManager: React.FC = () => {
   const {
     orders,
+    refreshOrders,
     products,
     updateOrderStatus,
     recordCashPaymentReceived,
@@ -31,10 +33,20 @@ export const AdminOrderManager: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
   const [filterPayment, setFilterPayment] = useState<PaymentStatus | 'all'>('all');
   const [filterFulfillment, setFilterFulfillment] = useState<FulfillmentType | 'all'>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
 
-  // Filter orders
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshOrders();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  // Filter orders - NO user_id filter applied: ensures all orders from all customers are visible
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,11 +63,22 @@ export const AdminOrderManager: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Order Management</h2>
-        <p className="text-xs text-slate-500">
-          Manage orders, verify payments, and trigger fulfillment stages.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Order Management</h2>
+          <p className="text-xs text-slate-500">
+            Manage global orders from all customers, verify payments, and trigger fulfillment stages.
+          </p>
+        </div>
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-sm transition-all self-start sm:self-auto"
+          title="Refresh orders from database"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? 'Syncing...' : 'Refresh Orders'}</span>
+        </button>
       </div>
 
       {/* Filter Controls */}

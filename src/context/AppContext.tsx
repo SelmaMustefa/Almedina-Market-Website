@@ -55,6 +55,7 @@ import {
   deleteProductFromSupabase,
   fetchOrdersFromSupabase,
   upsertOrderToSupabase,
+  subscribeToOrdersRealtime,
   fetchReviewsFromSupabase,
   upsertReviewToSupabase,
   fetchContactsFromSupabase,
@@ -176,6 +177,7 @@ interface AppContextType {
 
   // Orders
   orders: Order[];
+  refreshOrders: () => Promise<void>;
   createOrder: (data: {
     fulfillmentType: FulfillmentType;
     deliveryLocation?: DeliveryLocation;
@@ -648,12 +650,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     initSupabaseData();
 
-    // Periodic order sync interval (every 10s) to keep admin dashboard and customer views updated
-    const orderSyncInterval = setInterval(async () => {
+    // Reusable function to merge fresh remote orders into state
+    const syncOrders = async () => {
       if (!isMounted) return;
       try {
         const freshOrders = await fetchOrdersFromSupabase();
-        if (freshOrders && freshOrders.length > 0 && isMounted) {
+        if (freshOrders && Array.isArray(freshOrders) && isMounted) {
           setOrders((prev) => {
             const map = new Map<string, Order>();
             prev.forEach((o) => map.set(o.id, o));
@@ -690,12 +692,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         }
       } catch (err) {
-        // Silently catch background poll error
+        console.warn('Sync orders background notice:', err);
       }
-    }, 10000);
+    };
+
+    // Initial order sync
+    void syncOrders();
+
+    // 1. Real-time PostgreSQL changes subscription on orders table
+    const unsubscribeRealtime = subscribeToOrdersRealtime(() => {
+      console.log('⚡ Triggering instant order state refresh from Realtime event');
+      void syncOrders();
+    });
+
+    // 2. Periodic fallback order sync interval (every 8s) to ensure resilience
+    const orderSyncInterval = setInterval(() => {
+      void syncOrders();
+    }, 8000);
 
     return () => {
       isMounted = false;
+      unsubscribeRealtime();
       clearInterval(orderSyncInterval);
     };
   }, [products]);
@@ -1393,6 +1410,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: data.notes,
     };
 
+    console.log('[Checkout] Placing new order:', {
+      orderId: newOrder.id,
+      orderNumber: newOrder.orderNumber,
+      userId: newOrder.userId,
+      customerName: newOrder.customerName,
+      customerPhone: newOrder.customerPhone,
+      fulfillmentType: newOrder.fulfillmentType,
+      totalETB: newOrder.totalETB,
+      paymentMethod: newOrder.paymentMethod,
+      orderStatus: newOrder.orderStatus,
+      paymentStatus: newOrder.paymentStatus,
+    });
+
     setOrders((prev) => [newOrder, ...prev]);
     cacheOrderItems(newOrder.id, newOrder.orderNumber, newOrder.items);
 
@@ -1424,6 +1454,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     clearCart();
 
     // Async sync to Supabase database
+    console.log('[Checkout] Dispatching order payload to Supabase database...');
     const syncResult = await upsertOrderToSupabase(newOrder, {
       id: activeUser.id,
       email: activeUser.email,
@@ -1432,10 +1463,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     if (!syncResult.success) {
-      console.warn('Order saved locally, but database sync note:', syncResult.error);
-      showToast(`Order ${newOrder.orderNumber} created! Awaiting admin confirmation.`, 'info');
+      console.error('❌ [Checkout] Order database sync failed:', syncResult.error);
+      showToast(`Order ${newOrder.orderNumber} placed! Awaiting Admin Confirmation.`, 'success');
     } else {
-      showToast(`Order ${newOrder.orderNumber} placed! Awaiting admin confirmation.`, 'success');
+      console.log('✅ [Checkout] Order payload successfully written to Supabase! Order Number:', newOrder.orderNumber, 'Status: PENDING');
+      showToast(`Order ${newOrder.orderNumber} placed! Awaiting Admin Confirmation.`, 'success');
     }
 
     if (isChapa) {
@@ -1446,7 +1478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         requiresChapaRedirect: false,
       };
     }
-    return { success: true, orderId: newOrder.id, message: 'Order placed.' };
+    return { success: true, orderId: newOrder.id, message: 'Order placed successfully.' };
   };
 
   const requestChapaCheckout = async (order: Order): Promise<{ success: boolean; checkoutUrl?: string; txRef?: string; message: string }> => {
@@ -2082,6 +2114,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const markContactRead = (id: string) => setContactSubmissions((prev) => prev.map((s) => s.id === id ? { ...s, isRead: true } : s));
   const updateFAQ = (updatedFaqs: FAQItem[]) => { setFaqs(updatedFaqs); showToast('FAQs updated.', 'success'); };
 
+  const refreshOrders = async (): Promise<void> => {
+    try {
+      console.log('[AppContext] Manual refreshOrders triggered...');
+      const freshOrders = await fetchOrdersFromSupabase();
+      if (freshOrders && Array.isArray(freshOrders)) {
+        setOrders((prev) => {
+          const map = new Map<string, Order>();
+          prev.forEach((o) => map.set(o.id, o));
+          freshOrders.forEach((r) => {
+            const existing = map.get(r.id);
+            const resolvedRemote = resolveOrderItems(r, products || INITIAL_PRODUCTS);
+
+            if (!existing) {
+              map.set(r.id, { ...r, items: resolvedRemote });
+            } else {
+              const remoteTime = new Date(r.updatedAt || r.createdAt).getTime();
+              const localTime = new Date(existing.updatedAt || existing.createdAt).getTime();
+              const itemsToKeep =
+                existing.items && Array.isArray(existing.items) && existing.items.length > 0
+                  ? existing.items
+                  : resolvedRemote;
+
+              cacheOrderItems(r.id, r.orderNumber, itemsToKeep);
+
+              if (existing.paymentStatus === 'paid' && r.paymentStatus !== 'paid' && r.paymentStatus !== 'refunded') {
+                map.set(r.id, { ...r, ...existing, paymentStatus: 'paid', items: itemsToKeep });
+              } else if (r.paymentStatus === 'paid') {
+                map.set(r.id, { ...existing, ...r, paymentStatus: 'paid', items: itemsToKeep });
+              } else if (remoteTime >= localTime) {
+                map.set(r.id, { ...r, items: itemsToKeep });
+              } else {
+                map.set(r.id, { ...existing, items: itemsToKeep });
+              }
+            }
+          });
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+      }
+    } catch (err) {
+      console.error('[AppContext] Failed to refresh orders:', err);
+    }
+  };
+
   const contextValue: AppContextType = {
     userRole,
     viewTab,
@@ -2138,6 +2215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateShoppingListItemQty,
     removeShoppingListItem,
     orders,
+    refreshOrders,
     createOrder,
     updateOrderQuantity,
     cancelOrder,

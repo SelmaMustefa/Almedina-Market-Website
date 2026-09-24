@@ -137,16 +137,89 @@ const StorefrontContent: React.FC = () => {
   const [contactSubmittedInfo, setContactSubmittedInfo] = useState<{ name: string; email: string } | null>(null);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const inCat = selectedCategory === 'all' || p.categoryId === selectedCategory;
-      const q = searchQuery.toLowerCase();
-      const matches = p.name.toLowerCase().includes(q) ||
-        (p.arabicName || '').toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.origin.toLowerCase().includes(q);
-      return inCat && matches;
-    });
-  }, [products, selectedCategory, searchQuery]);
+    const rawQuery = searchQuery.trim().toLowerCase();
+
+    return products
+      .filter((p) => {
+        // 1. Category Filter
+        if (selectedCategory !== 'all' && p.categoryId !== selectedCategory) {
+          return false;
+        }
+
+        // If no search query, include all in category
+        if (!rawQuery) {
+          return true;
+        }
+
+        // 2. Build rich searchable fields corpus
+        const categoryObj = categories.find((c) => c.id === p.categoryId);
+        const categoryName = categoryObj ? categoryObj.name.toLowerCase() : '';
+        const categoryArabic = categoryObj?.arabicName ? categoryObj.arabicName.toLowerCase() : '';
+        const categoryDesc = categoryObj ? categoryObj.description.toLowerCase() : '';
+
+        const nameLower = p.name.toLowerCase();
+        const arabicLower = (p.arabicName || '').toLowerCase();
+        const originLower = (p.origin || '').toLowerCase();
+        const descLower = (p.description || '').toLowerCase();
+        const unitLower = (p.unit || '').toLowerCase();
+        const importedTag = p.isImported ? 'imported premium' : 'local fresh';
+
+        const searchableCorpus = `${nameLower} ${arabicLower} ${categoryName} ${categoryArabic} ${categoryDesc} ${originLower} ${descLower} ${unitLower} ${importedTag}`;
+
+        // 3. Multi-word and Substring Tokens Matching
+        const queryTokens = rawQuery.split(/\s+/).filter(Boolean);
+
+        // Every token typed should match in the product's attributes or fuzzy sequence
+        const allTokensMatch = queryTokens.every((token) => {
+          // Direct substring match in corpus
+          if (searchableCorpus.includes(token)) {
+            return true;
+          }
+
+          // Fuzzy sequence match for slight typo / relative typing (e.g. "ajwa" in "Saudi Ajwa Premium")
+          if (token.length >= 3) {
+            let tokenIdx = 0;
+            for (let i = 0; i < nameLower.length && tokenIdx < token.length; i++) {
+              if (nameLower[i] === token[tokenIdx]) {
+                tokenIdx++;
+              }
+            }
+            if (tokenIdx === token.length) {
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        return allTokensMatch;
+      })
+      .sort((a, b) => {
+        if (!rawQuery) return 0;
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+
+        // Exact name match priority
+        const aExact = aName === rawQuery;
+        const bExact = bName === rawQuery;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        // Name starts with query
+        const aStarts = aName.startsWith(rawQuery);
+        const bStarts = bName.startsWith(rawQuery);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        // Name includes query substring
+        const aIncludes = aName.includes(rawQuery);
+        const bIncludes = bName.includes(rawQuery);
+        if (aIncludes && !bIncludes) return -1;
+        if (!aIncludes && bIncludes) return 1;
+
+        return 0;
+      });
+  }, [products, categories, selectedCategory, searchQuery]);
 
   const favoriteProducts = useMemo(() => products.filter((p) => favorites.includes(p.id)), [products, favorites]);
 
@@ -429,7 +502,11 @@ const StorefrontContent: React.FC = () => {
           setOrderTrackingOpen(true);
         }}
       />
-      <CustomerDashboardModal isOpen={customerDashboardOpen} onClose={() => setCustomerDashboardOpen(false)} />
+      <CustomerDashboardModal
+        isOpen={customerDashboardOpen}
+        onClose={() => setCustomerDashboardOpen(false)}
+        onSelectProduct={(prod) => setSelectedProductModal(prod)}
+      />
       <OrderTrackingModal
         isOpen={orderTrackingOpen}
         onClose={() => { setOrderTrackingOpen(false); setHighlightOrderId(null); }}
@@ -444,13 +521,31 @@ const StorefrontContent: React.FC = () => {
       {/* Favorites Modal */}
       {favoritesOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FAF8F0] rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 pb-3">
-              <div className="flex items-center gap-2"><Heart className="w-5 h-5 text-amber-600" /><h2 className="text-lg font-bold font-serif text-[#1A1A1A]">Saved Favorites</h2></div>
-              <button onClick={() => setFavoritesOpen(false)} className="text-[#1A1A1A]/50 hover:text-[#1A1A1A] p-1"><X className="w-5 h-5" /></button>
+          <div className="bg-[#FAF8F0] dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-4 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Heart className="w-5 h-5 text-amber-500 fill-amber-500" />
+                <h2 className="text-lg font-bold font-serif text-[#1A1A1A] dark:text-slate-100">Saved Favorites</h2>
+                {favoriteProducts.length > 0 && (
+                  <span className="text-xs font-bold px-2 py-0.5 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 rounded-full">
+                    {favoriteProducts.length}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setFavoritesOpen(false)} className="text-[#1A1A1A]/50 dark:text-slate-400 hover:text-[#1A1A1A] dark:hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             {favoriteProducts.length === 0 ? (
-              <p className="text-xs text-[#1A1A1A]/60 py-8 text-center">Click the heart on any product to save it here.</p>
+              <div className="py-12 px-4 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                  <Heart className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-semibold text-[#1A1A1A] dark:text-slate-200">No saved favorites yet</p>
+                <p className="text-xs text-[#1A1A1A]/60 dark:text-slate-400 max-w-xs mx-auto">
+                  Click the heart icon on any product to save it to your account.
+                </p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {favoriteProducts.map((prod) => (

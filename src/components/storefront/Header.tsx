@@ -108,7 +108,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="hidden md:flex flex-1 max-w-xl items-center bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus-within:border-emerald-600 dark:focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-600/20 transition-all mx-3">
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value as CategoryId | 'all')}
+            onChange={(e) => {
+              const cat = e.target.value as CategoryId | 'all';
+              setSelectedCategory(cat);
+              const catalogGrid = document.getElementById('catalog-grid');
+              if (catalogGrid) {
+                catalogGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
             className="bg-transparent text-slate-700 dark:text-slate-200 font-medium text-xs px-3 py-2 border-r border-slate-200 dark:border-slate-700 focus:outline-none max-w-[130px] shrink-0 dark:bg-slate-800"
           >
             <option value="all" className="dark:bg-slate-800 dark:text-slate-100">All Categories</option>

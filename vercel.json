@@ -1,19 +1,13 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    },
-    {
-      "src": "server.ts",
-      "use": "@vercel/node"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server.ts"
+      "destination": "https://almedina-backend.onrender.com/api/$1"
+    },
+    {
+      "source": "/health",
+      "destination": "https://almedina-backend.onrender.com/health"
     },
     {
       "source": "/(.*)",

@@ -29,11 +29,19 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({ categories, selectedCa
     }
   };
 
+  const handleCategoryClick = (catId: CategoryId | 'all') => {
+    setSelectedCategory(catId);
+    const catalogGrid = document.getElementById('catalog-grid');
+    if (catalogGrid) {
+      catalogGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="my-2">
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         <button
-          onClick={() => setSelectedCategory('all')}
+          onClick={() => handleCategoryClick('all')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 border cursor-pointer ${
             selectedCategory === 'all'
               ? 'bg-slate-900 dark:bg-emerald-600 text-white border-slate-900 dark:border-emerald-600 shadow-md'
@@ -59,7 +67,7 @@ export const CategoryBar: React.FC<CategoryBarProps> = ({ categories, selectedCa
           return (
             <button
               key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
+              onClick={() => handleCategoryClick(cat.id)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shrink-0 border cursor-pointer ${
                 isSelected
                   ? 'bg-emerald-700 dark:bg-emerald-600 text-white border-emerald-700 dark:border-emerald-600 shadow-md shadow-emerald-700/20'

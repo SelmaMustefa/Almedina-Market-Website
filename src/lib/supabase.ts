@@ -635,3 +635,102 @@ export async function upsertReturnToSupabase(returnReport: ReturnReport): Promis
     return false;
   }
 }
+
+// ─── User Saved Products / Bookmarks Sync ─────────────────────────────────
+export async function fetchUserSavedProductIds(userId: string): Promise<string[] | null> {
+  if (!userId) return null;
+  try {
+    // 1. Try dedicated user_favorites / user_saved_products table
+    const { data: favData, error: favErr } = await supabase
+      .from('user_favorites')
+      .select('product_id')
+      .eq('user_id', userId);
+
+    if (!favErr && Array.isArray(favData) && favData.length > 0) {
+      return favData.map((row) => row.product_id).filter(Boolean);
+    }
+
+    // 2. Try user profile saved_products column
+    const { data: userData, error: userErr } = await supabase
+      .from('users')
+      .select('saved_products, favorites')
+      .or(`id.eq.${userId},firebase_uid.eq.${userId}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (!userErr && userData) {
+      const saved = userData.saved_products || userData.favorites;
+      if (Array.isArray(saved)) return saved;
+      if (typeof saved === 'string') {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 3. Fallback: try profiles table
+    const { data: profileData, error: profileErr } = await supabase
+      .from('profiles')
+      .select('saved_products, favorites')
+      .eq('id', userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!profileErr && profileData) {
+      const saved = profileData.saved_products || profileData.favorites;
+      if (Array.isArray(saved)) return saved;
+    }
+
+    return null;
+  } catch (err) {
+    console.warn('fetchUserSavedProductIds non-fatal notice:', err);
+    return null;
+  }
+}
+
+export async function saveUserSavedProductIds(userId: string, productIds: string[]): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const cleanIds = Array.from(new Set(productIds));
+
+    // 1. Try updating users / profiles table with JSON array
+    const { error: userUpdateErr } = await supabase
+      .from('users')
+      .update({ saved_products: cleanIds, updated_at: new Date().toISOString() })
+      .or(`id.eq.${userId},firebase_uid.eq.${userId}`);
+
+    // Also try updating profiles table if present
+    try {
+      await supabase
+        .from('profiles')
+        .update({ saved_products: cleanIds, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+    } catch {
+      // ignore
+    }
+
+    // 2. Try updating user_favorites table (delete old + insert current)
+    try {
+      await supabase.from('user_favorites').delete().eq('user_id', userId);
+      if (cleanIds.length > 0) {
+        const rows = cleanIds.map((pid) => ({
+          user_id: userId,
+          product_id: pid,
+          created_at: new Date().toISOString(),
+        }));
+        await supabase.from('user_favorites').insert(rows);
+      }
+    } catch {
+      // Table might not exist; users JSON column was already attempted
+    }
+
+    return !userUpdateErr;
+  } catch (err) {
+    console.warn('saveUserSavedProductIds non-fatal notice:', err);
+    return false;
+  }
+}
+

@@ -14,6 +14,15 @@ const PORT = Number(process.env.PORT) || 4173;
 app.use(cors());
 app.use(express.json());
 
+// Security headers middleware
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 // Container Health Check Route (for EthioDeploy / Docker / orchestrators)
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).send('OK');

@@ -647,10 +647,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     initSupabaseData();
+
+    // Periodic order sync interval (every 10s) to keep admin dashboard and customer views updated
+    const orderSyncInterval = setInterval(async () => {
+      if (!isMounted) return;
+      try {
+        const freshOrders = await fetchOrdersFromSupabase();
+        if (freshOrders && freshOrders.length > 0 && isMounted) {
+          setOrders((prev) => {
+            const map = new Map<string, Order>();
+            prev.forEach((o) => map.set(o.id, o));
+            freshOrders.forEach((r) => {
+              const existing = map.get(r.id);
+              const resolvedRemote = resolveOrderItems(r, products || INITIAL_PRODUCTS);
+
+              if (!existing) {
+                map.set(r.id, { ...r, items: resolvedRemote });
+              } else {
+                const remoteTime = new Date(r.updatedAt || r.createdAt).getTime();
+                const localTime = new Date(existing.updatedAt || existing.createdAt).getTime();
+                const itemsToKeep =
+                  existing.items && Array.isArray(existing.items) && existing.items.length > 0
+                    ? existing.items
+                    : resolvedRemote;
+
+                cacheOrderItems(r.id, r.orderNumber, itemsToKeep);
+
+                if (existing.paymentStatus === 'paid' && r.paymentStatus !== 'paid' && r.paymentStatus !== 'refunded') {
+                  map.set(r.id, { ...r, ...existing, paymentStatus: 'paid', items: itemsToKeep });
+                } else if (r.paymentStatus === 'paid') {
+                  map.set(r.id, { ...existing, ...r, paymentStatus: 'paid', items: itemsToKeep });
+                } else if (remoteTime >= localTime) {
+                  map.set(r.id, { ...r, items: itemsToKeep });
+                } else {
+                  map.set(r.id, { ...existing, items: itemsToKeep });
+                }
+              }
+            });
+            return Array.from(map.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+          });
+        }
+      } catch (err) {
+        // Silently catch background poll error
+      }
+    }, 10000);
+
     return () => {
       isMounted = false;
+      clearInterval(orderSyncInterval);
     };
-  }, []);
+  }, [products]);
 
   const showToast = (_message: string, _type: Toast['type'] = 'info') => {
     // Notifications silenced / removed from the UI as requested

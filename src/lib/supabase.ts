@@ -312,6 +312,16 @@ export async function fetchOrdersFromSupabase(): Promise<Order[] | null> {
       if (typeof deliveryLocation === 'string') {
         try { deliveryLocation = JSON.parse(deliveryLocation); } catch { deliveryLocation = undefined; }
       }
+      if (!deliveryLocation && (row.delivery_address_text || row.delivery_landmark || row.delivery_latitude)) {
+        deliveryLocation = {
+          addressText: row.delivery_address_text || '',
+          landmark: row.delivery_landmark || undefined,
+          latitude: row.delivery_latitude != null ? Number(row.delivery_latitude) : 8.9833,
+          longitude: row.delivery_longitude != null ? Number(row.delivery_longitude) : 38.7083,
+          distanceKm: row.delivery_distance_km != null ? Number(row.delivery_distance_km) : 0,
+        };
+      }
+
       let rawMethod = String(row.payment_method || row.paymentMethod || 'cash').toLowerCase();
       let normalizedMethod: 'chapa' | 'cash' = 'cash';
       if (rawMethod === 'chapa' || rawMethod === 'telebirr' || rawMethod === 'cbe_birr' || rawMethod === 'online') {
@@ -398,13 +408,14 @@ export async function upsertOrderToSupabase(
       await syncFirebaseUserToSupabase(user);
     }
 
-    // 2. Full payload with snake_case naming
+    // 2. Full payload with snake_case naming and dual schema compatibility
     const fullPayload: Record<string, any> = {
       id: order.id,
       order_number: order.orderNumber,
       user_id: order.userId,
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
+      customer_email: user?.email || null,
       fulfillment_type: order.fulfillmentType,
       subtotal_etb: order.subtotalETB,
       delivery_fee_etb: order.deliveryFeeETB,
@@ -422,6 +433,11 @@ export async function upsertOrderToSupabase(
 
     if (order.deliveryLocation) {
       fullPayload.delivery_location = order.deliveryLocation;
+      fullPayload.delivery_address_text = order.deliveryLocation.addressText || (order.fulfillmentType === 'pickup' ? 'Bethel Store Pickup' : 'Addis Ababa');
+      fullPayload.delivery_landmark = order.deliveryLocation.landmark || null;
+      fullPayload.delivery_latitude = order.deliveryLocation.latitude ?? null;
+      fullPayload.delivery_longitude = order.deliveryLocation.longitude ?? null;
+      fullPayload.delivery_distance_km = order.deliveryLocation.distanceKm ?? 0;
     }
 
     // Try primary full payload upsert
